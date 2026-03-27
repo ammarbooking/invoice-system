@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>نظام محاسبي احترافي - نسخة v2.3</title>
+  <title>Qayd ERP - نظام محاسبي احترافي v2.3</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -265,7 +265,7 @@
 <body>
   <div id="authOverlay" class="auth-overlay show">
     <div class="auth-card">
-      <h2>تسجيل الدخول إلى EliteBooks ERP</h2>
+      <h2>تسجيل الدخول إلى Qayd ERP</h2>
       <p>اعمل حساب وابدأ فترة تجريبية 7 أيام. كل بيانات كل عميل معزولة بحسابه.</p>
       <div class="auth-switch">
         <button id="showLoginBtn" type="button" class="btn primary">دخول</button>
@@ -298,9 +298,9 @@
   <div class="app hidden">
     <aside class="sidebar">
       <div class="brand">
-        <div class="logo">₿</div>
+        <div class="logo">Q</div>
         <div>
-          <h1>EliteBooks ERP</h1>
+          <h1>Qayd ERP</h1>
           <p>نظام محاسبي متكامل</p>
         </div>
       </div>
@@ -313,6 +313,9 @@
       <button class="nav-btn" data-tab="reports"><span class="nav-icon">📊</span>التقارير</button>
       <button class="nav-btn" data-tab="payments"><span class="nav-icon">💳</span>المدفوعات</button>
       <button class="nav-btn" data-tab="cashbox"><span class="nav-icon">💰</span>الخزنة</button>
+      <button class="nav-btn" data-tab="accounts"><span class="nav-icon">🧮</span>شجرة الحسابات</button>
+      <button class="nav-btn" data-tab="journal"><span class="nav-icon">📚</span>القيود اليومية</button>
+      <button class="nav-btn" data-tab="vouchers"><span class="nav-icon">🧾</span>السندات</button>
     </aside>
 
     <main class="main">
@@ -642,7 +645,7 @@
               <div class="form-grid">
                 <div class="field">
                   <label>اسم الشركة</label>
-                  <input id="companyName" type="text" placeholder="EliteBooks ERP">
+                  <input id="companyName" type="text" placeholder="Qayd ERP">
                 </div>
                 <div class="field">
                   <label>النشاط المختصر</label>
@@ -662,7 +665,7 @@
                 </div>
                 <div class="field">
                   <label>اختصار اللوجو</label>
-                  <input id="companyLogoText" type="text" maxlength="4" placeholder="EB">
+                  <input id="companyLogoText" type="text" maxlength="4" placeholder="Q">
                 </div>
                 <div class="field">
                   <label>ملاحظة افتراضية أسفل الفاتورة</label>
@@ -882,6 +885,225 @@
           </div>
         </div>
       </section>
+      <section id="accounts" class="tabs">
+        <div class="grid-2">
+          <div class="section panel">
+            <h3>إضافة / تعديل حساب</h3>
+            <p>أنشئ شجرة حسابات مرنة لاستخدامها في القيود اليومية والسندات والتحليلات المحاسبية.</p>
+            <form id="accountForm">
+              <div class="form-grid">
+                <div class="field">
+                  <label>كود الحساب</label>
+                  <input id="accountCode" type="text" placeholder="1110">
+                </div>
+                <div class="field">
+                  <label>اسم الحساب</label>
+                  <input id="accountName" type="text" placeholder="الصندوق">
+                </div>
+                <div class="field">
+                  <label>التصنيف الرئيسي</label>
+                  <select id="accountCategory">
+                    <option value="asset">أصول</option>
+                    <option value="liability">خصوم</option>
+                    <option value="equity">حقوق ملكية</option>
+                    <option value="revenue">إيرادات</option>
+                    <option value="expense">مصروفات</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>النوع الفرعي</label>
+                  <select id="accountType">
+                    <option value="cash">نقدية</option>
+                    <option value="bank">بنك</option>
+                    <option value="receivable">عملاء</option>
+                    <option value="payable">موردون</option>
+                    <option value="tax">ضرائب</option>
+                    <option value="revenue">إيراد</option>
+                    <option value="expense">مصروف</option>
+                    <option value="equity">رأس مال</option>
+                    <option value="other">أخرى</option>
+                  </select>
+                </div>
+              </div>
+              <div class="toolbar">
+                <button type="submit" class="btn primary">حفظ الحساب</button>
+                <button id="clearAccountForm" type="button" class="btn secondary">تفريغ الحقول</button>
+              </div>
+            </form>
+            <div id="accountMsg" class="footer-msg"></div>
+          </div>
+
+          <div class="section panel">
+            <h3>شجرة الحسابات</h3>
+            <p>ملخص الحسابات والحركة عليها من القيود التلقائية واليدوية.</p>
+            <div id="accountSummaryCards" class="mini-stats"></div>
+            <div class="table-wrap" style="margin-top:16px">
+              <table>
+                <thead>
+                  <tr>
+                    <th>الكود</th>
+                    <th>الحساب</th>
+                    <th>التصنيف</th>
+                    <th>مدين</th>
+                    <th>دائن</th>
+                    <th>الرصيد</th>
+                    <th>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="accountsTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="journal" class="tabs">
+        <div class="grid-2">
+          <div class="section panel">
+            <h3>قيد يومية يدوي</h3>
+            <p>أضف قيدًا متوازنًا يدويًا لتسجيل التسويات أو المعالجات الخاصة.</p>
+            <form id="journalForm">
+              <div class="form-grid">
+                <div class="field">
+                  <label>رقم القيد</label>
+                  <input id="journalNumber" type="text" placeholder="JV-2026-0001" readonly>
+                </div>
+                <div class="field">
+                  <label>التاريخ</label>
+                  <input id="journalDate" type="date">
+                </div>
+                <div class="field">
+                  <label>الحساب المدين</label>
+                  <select id="journalDebitAccount"></select>
+                </div>
+                <div class="field">
+                  <label>الحساب الدائن</label>
+                  <select id="journalCreditAccount"></select>
+                </div>
+                <div class="field">
+                  <label>المبلغ</label>
+                  <input id="journalAmount" type="number" min="0.01" step="0.01" placeholder="1500">
+                </div>
+                <div class="field">
+                  <label>مرجع العملية</label>
+                  <input id="journalReference" type="text" placeholder="قيد تسوية / إقفال">
+                </div>
+                <div class="field full">
+                  <label>الوصف</label>
+                  <textarea id="journalDescription" placeholder="وصف القيد المحاسبي"></textarea>
+                </div>
+              </div>
+              <div class="toolbar">
+                <button type="submit" class="btn primary">حفظ القيد</button>
+                <button id="clearJournalForm" type="button" class="btn secondary">تفريغ الحقول</button>
+              </div>
+            </form>
+            <div id="journalMsg" class="footer-msg"></div>
+          </div>
+
+          <div class="section panel">
+            <h3>دفتر اليومية</h3>
+            <p>يعرض القيود التلقائية الناتجة من الفواتير والمدفوعات والخزنة، بالإضافة إلى القيود اليدوية.</p>
+            <div id="journalStats" class="inline-stats"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>رقم القيد</th>
+                    <th>التاريخ</th>
+                    <th>الوصف</th>
+                    <th>المرجع</th>
+                    <th>إجمالي المدين</th>
+                    <th>إجمالي الدائن</th>
+                    <th>النوع</th>
+                    <th>السطور</th>
+                    <th>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="journalTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="vouchers" class="tabs">
+        <div class="grid-2">
+          <div class="section panel">
+            <h3>سند قبض / صرف</h3>
+            <p>أنشئ مستندًا رسميًا للحركات النقدية مع توليد قيد محاسبي تلقائي وربطه بالخزنة.</p>
+            <form id="voucherForm">
+              <div class="form-grid">
+                <div class="field">
+                  <label>رقم السند</label>
+                  <input id="voucherNumber" type="text" placeholder="VCH-2026-0001" readonly>
+                </div>
+                <div class="field">
+                  <label>النوع</label>
+                  <select id="voucherType">
+                    <option value="receipt">سند قبض</option>
+                    <option value="payment">سند صرف</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>التاريخ</label>
+                  <input id="voucherDate" type="date">
+                </div>
+                <div class="field">
+                  <label>الحساب المقابل</label>
+                  <select id="voucherAccount"></select>
+                </div>
+                <div class="field">
+                  <label>المبلغ</label>
+                  <input id="voucherAmount" type="number" min="0.01" step="0.01" placeholder="2000">
+                </div>
+                <div class="field">
+                  <label>طريقة الصندوق / التحصيل</label>
+                  <select id="voucherMethod">
+                    <option value="cash">الصندوق</option>
+                    <option value="bank">البنك</option>
+                    <option value="wallet">محفظة</option>
+                    <option value="cheque">شيك</option>
+                  </select>
+                </div>
+                <div class="field full">
+                  <label>البيان</label>
+                  <textarea id="voucherDescription" placeholder="مثال: سند قبض دفعة مقدمة من العميل"></textarea>
+                </div>
+              </div>
+              <div class="toolbar">
+                <button type="submit" class="btn primary">حفظ السند</button>
+                <button id="clearVoucherForm" type="button" class="btn secondary">تفريغ الحقول</button>
+              </div>
+            </form>
+            <div id="voucherMsg" class="footer-msg"></div>
+          </div>
+
+          <div class="section panel">
+            <h3>سجل السندات</h3>
+            <p>سندات القبض والصرف المسجلة داخل النظام مع ربطها بالقيد والخزنة.</p>
+            <div id="voucherStats" class="inline-stats"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>رقم السند</th>
+                    <th>النوع</th>
+                    <th>التاريخ</th>
+                    <th>الحساب</th>
+                    <th>المبلغ</th>
+                    <th>الطريقة</th>
+                    <th>البيان</th>
+                    <th>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="voucherTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -1012,12 +1234,15 @@
     }
 
     const STORAGE_KEYS = {
-      invoices: 'elitebooks_invoices',
-      customers: 'elitebooks_customers',
-      cash: 'elitebooks_cash_movements',
-      payments: 'elitebooks_payments',
-      products: 'elitebooks_products',
-      settings: 'elitebooks_settings'
+      invoices: 'qayd_invoices',
+      customers: 'qayd_customers',
+      cash: 'qayd_cash_movements',
+      payments: 'qayd_payments',
+      products: 'qayd_products',
+      settings: 'qayd_settings',
+      accounts: 'qayd_accounts',
+      manualJournal: 'qayd_manual_journal',
+      vouchers: 'qayd_vouchers'
     };
 
     let editingInvoiceId = null;
@@ -1025,17 +1250,18 @@
     let editingCashId = null;
     let editingPaymentId = null;
     let editingProductId = null;
+    let editingAccountId = null;
     let currentUser = null;
     let authMode = 'login';
     let appBooted = false;
 
     let companySettings = {
-      companyName: 'EliteBooks ERP',
+      companyName: 'Qayd ERP',
       tagline: 'حلول محاسبية وتقنية',
       address: 'القاهرة - مصر',
       phone: '01000000000',
       taxNumber: 'TX-2026-001',
-      logoText: 'EB',
+      logoText: 'Q',
       invoiceFooter: 'شكرًا لتعاملكم معنا - يمكن حفظ هذه الفاتورة PDF من نافذة الطباعة.'
     };
 
@@ -1118,6 +1344,526 @@
       withMeta({ type: 'out', amount: 3200, date: '2026-03-26', category: 'operations', description: 'مصروفات تشغيل' }, 'cash'),
       withMeta({ type: 'in', amount: 8500, date: '2026-03-27', category: 'sales_collection', description: 'دفعة عميل جديدة' }, 'cash')
     ];
+
+    let chartOfAccounts = [
+      withMeta({ code: '1110', name: 'الصندوق', category: 'asset', type: 'cash', locked: true }, 'acc'),
+      withMeta({ code: '1120', name: 'البنك', category: 'asset', type: 'bank', locked: true }, 'acc'),
+      withMeta({ code: '1130', name: 'محفظة إلكترونية', category: 'asset', type: 'bank', locked: true }, 'acc'),
+      withMeta({ code: '1140', name: 'شيكات تحت التحصيل', category: 'asset', type: 'bank', locked: true }, 'acc'),
+      withMeta({ code: '1210', name: 'العملاء', category: 'asset', type: 'receivable', locked: true }, 'acc'),
+      withMeta({ code: '2110', name: 'ضريبة القيمة المضافة', category: 'liability', type: 'tax', locked: true }, 'acc'),
+      withMeta({ code: '3110', name: 'رأس المال', category: 'equity', type: 'equity', locked: true }, 'acc'),
+      withMeta({ code: '4110', name: 'إيرادات المبيعات', category: 'revenue', type: 'revenue', locked: true }, 'acc'),
+      withMeta({ code: '4120', name: 'الخصومات الممنوحة', category: 'expense', type: 'expense', locked: true }, 'acc'),
+      withMeta({ code: '5110', name: 'مصاريف تشغيل', category: 'expense', type: 'expense', locked: true }, 'acc'),
+      withMeta({ code: '5120', name: 'مشتريات', category: 'expense', type: 'expense', locked: true }, 'acc'),
+      withMeta({ code: '5130', name: 'إيجار', category: 'expense', type: 'expense', locked: true }, 'acc'),
+      withMeta({ code: '5140', name: 'مرتبات', category: 'expense', type: 'expense', locked: true }, 'acc'),
+      withMeta({ code: '5150', name: 'خدمات ورسوم', category: 'expense', type: 'expense', locked: true }, 'acc')
+    ];
+
+    let manualJournalEntries = [
+      withMeta({
+        number: 'JV-2026-0001',
+        date: '2026-03-27',
+        description: 'قيد افتتاحي لرأس المال',
+        reference: 'افتتاحي',
+        source: 'manual',
+        lines: [
+          { accountCode: '1110', accountName: 'الصندوق', debit: 50000, credit: 0 },
+          { accountCode: '3110', accountName: 'رأس المال', debit: 0, credit: 50000 }
+        ]
+      }, 'jv')
+    ];
+
+    let vouchers = [
+      withMeta({
+        number: 'VCH-2026-0001',
+        type: 'receipt',
+        date: '2026-03-27',
+        accountCode: '1210',
+        accountName: 'العملاء',
+        amount: 5000,
+        method: 'cash',
+        description: 'سند قبض مبدئي من أحد العملاء',
+        source: 'manual'
+      }, 'vch')
+    ];
+
+
+    function normalizeAccountRecord(item){
+      return withMeta({
+        ...item,
+        code: (item.code || '').trim(),
+        name: (item.name || '').trim(),
+        category: item.category || 'asset',
+        type: item.type || 'other',
+        locked: Boolean(item.locked)
+      }, 'acc');
+    }
+
+    function normalizeJournalEntry(item){
+      const lines = Array.isArray(item.lines) ? item.lines.map(line => ({
+        accountCode: line.accountCode || '',
+        accountName: line.accountName || getAccountName(line.accountCode),
+        debit: Number(line.debit || 0),
+        credit: Number(line.credit || 0)
+      })) : [];
+      return withMeta({
+        ...item,
+        number: item.number || getNextJournalNumber(),
+        date: normalizeDate(item.date),
+        description: item.description || '',
+        reference: item.reference || '',
+        source: item.source || 'manual',
+        lines
+      }, 'jv');
+    }
+
+    function normalizeVoucherRecord(item){
+      return withMeta({
+        ...item,
+        number: item.number || getNextVoucherNumber(),
+        type: item.type || 'receipt',
+        date: normalizeDate(item.date),
+        accountCode: item.accountCode || '',
+        accountName: item.accountName || getAccountName(item.accountCode),
+        amount: Number(item.amount || 0),
+        method: item.method || 'cash',
+        description: item.description || '',
+        source: item.source || 'manual'
+      }, 'vch');
+    }
+
+    function getAccountCategoryLabel(category){
+      return {
+        asset: 'أصول',
+        liability: 'خصوم',
+        equity: 'حقوق ملكية',
+        revenue: 'إيرادات',
+        expense: 'مصروفات'
+      }[category] || 'أخرى';
+    }
+
+    function getAccountName(code){
+      const acc = chartOfAccounts.find(item => item.code === code);
+      return acc ? acc.name : code || '';
+    }
+
+    function getCashAccountCodeByMethod(method){
+      return {
+        cash: '1110',
+        bank: '1120',
+        wallet: '1130',
+        cheque: '1140'
+      }[method || 'cash'] || '1110';
+    }
+
+    function getExpenseAccountCodeByCategory(category){
+      return {
+        operations: '5110',
+        purchases: '5120',
+        rent: '5130',
+        salary: '5140',
+        services: '5150'
+      }[category] || '5110';
+    }
+
+    function getVoucherTypeLabel(type){
+      return type === 'payment' ? 'سند صرف' : 'سند قبض';
+    }
+
+    function getNextJournalNumber(){
+      const year = new Date().getFullYear();
+      const serials = manualJournalEntries.map(item => {
+        const match = String(item.number || '').match(/JV-\d{4}-(\d+)/);
+        return match ? Number(match[1]) : 0;
+      });
+      return `JV-${year}-${String((Math.max(0, ...serials) + 1)).padStart(4, '0')}`;
+    }
+
+    function getNextVoucherNumber(){
+      const year = new Date().getFullYear();
+      const serials = vouchers.map(item => {
+        const match = String(item.number || '').match(/VCH-\d{4}-(\d+)/);
+        return match ? Number(match[1]) : 0;
+      });
+      return `VCH-${year}-${String((Math.max(0, ...serials) + 1)).padStart(4, '0')}`;
+    }
+
+    function getInvoiceNetSales(inv){
+      const subTotal = (inv.items || []).reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.price || 0), 0);
+      return Math.max(subTotal - Number(inv.discount || 0), 0);
+    }
+
+    function getInvoiceTaxAmount(inv){
+      const netSales = getInvoiceNetSales(inv);
+      return Number((netSales * (Number(inv.tax || 0) / 100)).toFixed(2));
+    }
+
+    function buildAutoJournalEntries(){
+      const entries = [];
+
+      invoices.forEach(inv => {
+        const netSales = getInvoiceNetSales(inv);
+        const taxAmount = getInvoiceTaxAmount(inv);
+        const totalAmount = Number(inv.amount || netSales + taxAmount);
+        const lines = [
+          { accountCode: '1210', accountName: getAccountName('1210'), debit: totalAmount, credit: 0 },
+          { accountCode: '4110', accountName: getAccountName('4110'), debit: 0, credit: netSales }
+        ];
+        if(taxAmount > 0){
+          lines.push({ accountCode: '2110', accountName: getAccountName('2110'), debit: 0, credit: taxAmount });
+        }
+        entries.push(normalizeJournalEntry({
+          id: `auto_inv_${inv.id}`,
+          number: `AUTO-INV-${inv.number}`,
+          date: inv.date,
+          description: `إثبات فاتورة ${inv.number} - ${inv.customer}`,
+          reference: inv.number,
+          source: 'invoice',
+          createdAt: inv.createdAt,
+          updatedAt: inv.updatedAt,
+          lines
+        }));
+      });
+
+      payments.forEach(payment => {
+        const cashCode = getCashAccountCodeByMethod(payment.method);
+        entries.push(normalizeJournalEntry({
+          id: `auto_pay_${payment.id}`,
+          number: `AUTO-PAY-${payment.invoiceNumber || payment.id.slice(-4)}`,
+          date: payment.date,
+          description: `تحصيل دفعة على الفاتورة ${payment.invoiceNumber || ''} - ${payment.customer || ''}`,
+          reference: payment.invoiceNumber || payment.id,
+          source: 'payment',
+          createdAt: payment.createdAt,
+          updatedAt: payment.updatedAt,
+          lines: [
+            { accountCode: cashCode, accountName: getAccountName(cashCode), debit: Number(payment.amount || 0), credit: 0 },
+            { accountCode: '1210', accountName: getAccountName('1210'), debit: 0, credit: Number(payment.amount || 0) }
+          ]
+        }));
+      });
+
+      cashMovements.filter(item => !item.linkedPaymentId && !item.linkedVoucherId).forEach(item => {
+        if(item.type === 'out'){
+          const expenseCode = getExpenseAccountCodeByCategory(item.category);
+          entries.push(normalizeJournalEntry({
+            id: `auto_cash_${item.id}`,
+            number: `AUTO-CASH-${item.id.slice(-4)}`,
+            date: item.date,
+            description: `حركة صرف خزنة - ${item.description || ''}`,
+            reference: item.description || item.id,
+            source: 'cash',
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            lines: [
+              { accountCode: expenseCode, accountName: getAccountName(expenseCode), debit: Number(item.amount || 0), credit: 0 },
+              { accountCode: '1110', accountName: getAccountName('1110'), debit: 0, credit: Number(item.amount || 0) }
+            ]
+          }));
+        }else{
+          entries.push(normalizeJournalEntry({
+            id: `auto_cash_${item.id}`,
+            number: `AUTO-CASH-${item.id.slice(-4)}`,
+            date: item.date,
+            description: `حركة قبض خزنة - ${item.description || ''}`,
+            reference: item.description || item.id,
+            source: 'cash',
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            lines: [
+              { accountCode: '1110', accountName: getAccountName('1110'), debit: Number(item.amount || 0), credit: 0 },
+              { accountCode: '4110', accountName: getAccountName('4110'), debit: 0, credit: Number(item.amount || 0) }
+            ]
+          }));
+        }
+      });
+
+      vouchers.forEach(voucher => {
+        const cashCode = getCashAccountCodeByMethod(voucher.method);
+        const counterCode = voucher.accountCode;
+        const lines = voucher.type === 'payment'
+          ? [
+              { accountCode: counterCode, accountName: getAccountName(counterCode), debit: Number(voucher.amount || 0), credit: 0 },
+              { accountCode: cashCode, accountName: getAccountName(cashCode), debit: 0, credit: Number(voucher.amount || 0) }
+            ]
+          : [
+              { accountCode: cashCode, accountName: getAccountName(cashCode), debit: Number(voucher.amount || 0), credit: 0 },
+              { accountCode: counterCode, accountName: getAccountName(counterCode), debit: 0, credit: Number(voucher.amount || 0) }
+            ];
+
+        entries.push(normalizeJournalEntry({
+          id: `auto_vch_${voucher.id}`,
+          number: `AUTO-${voucher.number}`,
+          date: voucher.date,
+          description: `${getVoucherTypeLabel(voucher.type)} - ${voucher.description || voucher.accountName}`,
+          reference: voucher.number,
+          source: 'voucher',
+          createdAt: voucher.createdAt,
+          updatedAt: voucher.updatedAt,
+          lines
+        }));
+      });
+
+      return entries;
+    }
+
+    function getAllJournalEntries(){
+      return [...buildAutoJournalEntries(), ...manualJournalEntries.map(normalizeJournalEntry)]
+        .sort((a,b) => new Date(b.date) - new Date(a.date));
+    }
+
+    function computeAccountBalances(){
+      const balances = {};
+      chartOfAccounts.forEach(acc => {
+        balances[acc.code] = { debit: 0, credit: 0, balance: 0, account: acc };
+      });
+
+      getAllJournalEntries().forEach(entry => {
+        (entry.lines || []).forEach(line => {
+          if(!balances[line.accountCode]){
+            balances[line.accountCode] = {
+              debit: 0, credit: 0, balance: 0,
+              account: normalizeAccountRecord({ code: line.accountCode, name: line.accountName, category: 'asset', type: 'other' })
+            };
+          }
+          balances[line.accountCode].debit += Number(line.debit || 0);
+          balances[line.accountCode].credit += Number(line.credit || 0);
+        });
+      });
+
+      Object.values(balances).forEach(item => {
+        const category = item.account.category;
+        const normalDebit = ['asset', 'expense'].includes(category);
+        item.balance = Number((normalDebit ? item.debit - item.credit : item.credit - item.debit).toFixed(2));
+      });
+
+      return balances;
+    }
+
+    function populateAccountingSelectors(){
+      const options = chartOfAccounts
+        .slice()
+        .sort((a,b) => a.code.localeCompare(b.code))
+        .map(acc => `<option value="${safeText(acc.code)}">${safeText(acc.code)} — ${safeText(acc.name)}</option>`)
+        .join('');
+
+      ['journalDebitAccount','journalCreditAccount','voucherAccount'].forEach(id => {
+        const select = document.getElementById(id);
+        if(select) select.innerHTML = '<option value="">اختر الحساب</option>' + options;
+      });
+    }
+
+    function resetAccountForm(){
+      editingAccountId = null;
+      document.getElementById('accountForm').reset();
+      document.getElementById('accountCategory').value = 'asset';
+      document.getElementById('accountType').value = 'cash';
+    }
+
+    function resetJournalForm(){
+      document.getElementById('journalForm').reset();
+      document.getElementById('journalDate').value = getTodayISO();
+      document.getElementById('journalNumber').value = getNextJournalNumber();
+      populateAccountingSelectors();
+    }
+
+    function resetVoucherForm(){
+      document.getElementById('voucherForm').reset();
+      document.getElementById('voucherDate').value = getTodayISO();
+      document.getElementById('voucherNumber').value = getNextVoucherNumber();
+      document.getElementById('voucherType').value = 'receipt';
+      document.getElementById('voucherMethod').value = 'cash';
+      populateAccountingSelectors();
+    }
+
+    function editAccount(id){
+      const account = chartOfAccounts.find(item => item.id === id);
+      if(!account) return;
+      editingAccountId = id;
+      document.getElementById('accountCode').value = account.code || '';
+      document.getElementById('accountName').value = account.name || '';
+      document.getElementById('accountCategory').value = account.category || 'asset';
+      document.getElementById('accountType').value = account.type || 'other';
+      switchTab('accounts');
+      showMessage('accountMsg', 'أنت الآن في وضع تعديل الحساب.');
+    }
+
+    function deleteAccount(id){
+      const index = chartOfAccounts.findIndex(item => item.id === id);
+      if(index === -1) return;
+      const account = chartOfAccounts[index];
+      if(account.locked){
+        showMessage('accountMsg', 'هذا الحساب افتراضي وأساسي داخل النظام ولا يمكن حذفه.');
+        return;
+      }
+      const used = getAllJournalEntries().some(entry => (entry.lines || []).some(line => line.accountCode === account.code));
+      if(used){
+        showMessage('accountMsg', 'لا يمكن حذف الحساب لأنه مستخدم داخل قيود أو سندات.');
+        return;
+      }
+      chartOfAccounts.splice(index, 1);
+      saveData();
+      renderAccountingSuite();
+      showMessage('accountMsg', 'تم حذف الحساب بنجاح.');
+    }
+
+    function deleteManualJournal(id){
+      const index = manualJournalEntries.findIndex(item => item.id === id);
+      if(index === -1) return;
+      manualJournalEntries.splice(index, 1);
+      saveData();
+      renderAccountingSuite();
+      showMessage('journalMsg', 'تم حذف القيد اليدوي بنجاح.');
+    }
+
+    function deleteVoucher(id){
+      const index = vouchers.findIndex(item => item.id === id);
+      if(index === -1) return;
+      const voucher = vouchers[index];
+      vouchers.splice(index, 1);
+      cashMovements = cashMovements.filter(item => item.linkedVoucherId !== voucher.id);
+      saveData();
+      renderCash();
+      renderAccountingSuite();
+      renderReports();
+      showMessage('voucherMsg', 'تم حذف السند وربطته النقدية بنجاح.');
+    }
+
+    function renderAccounts(){
+      const body = document.getElementById('accountsTableBody');
+      const summary = document.getElementById('accountSummaryCards');
+      if(!body || !summary) return;
+      const balances = computeAccountBalances();
+      const rows = chartOfAccounts.slice().sort((a,b) => a.code.localeCompare(b.code));
+
+      const categoryCount = { asset:0, liability:0, equity:0, revenue:0, expense:0 };
+      rows.forEach(acc => categoryCount[acc.category] = (categoryCount[acc.category] || 0) + 1);
+      summary.innerHTML = `
+        <div class="mini-card"><h4>إجمالي الحسابات</h4><strong>${rows.length}</strong></div>
+        <div class="mini-card"><h4>حسابات الأصول</h4><strong>${categoryCount.asset || 0}</strong></div>
+        <div class="mini-card"><h4>حسابات الإيراد</h4><strong>${categoryCount.revenue || 0}</strong></div>
+        <div class="mini-card"><h4>حسابات المصروف</h4><strong>${categoryCount.expense || 0}</strong></div>
+      `;
+
+      if(!rows.length){
+        body.innerHTML = '<tr><td colspan="7" class="empty">لا توجد حسابات</td></tr>';
+        return;
+      }
+
+      body.innerHTML = rows.map(acc => {
+        const totals = balances[acc.code] || { debit:0, credit:0, balance:0 };
+        return `
+          <tr>
+            <td>${safeText(acc.code)}</td>
+            <td>${safeText(acc.name)}</td>
+            <td>${safeText(getAccountCategoryLabel(acc.category))}</td>
+            <td>${formatMoney(totals.debit || 0)}</td>
+            <td>${formatMoney(totals.credit || 0)}</td>
+            <td>${formatMoney(totals.balance || 0)}</td>
+            <td>
+              <div class="row-actions">
+                <button type="button" class="mini-btn edit" onclick="editAccount('${acc.id}')">تعديل</button>
+                <button type="button" class="mini-btn delete" onclick="deleteAccount('${acc.id}')">حذف</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderJournal(){
+      const body = document.getElementById('journalTableBody');
+      const stats = document.getElementById('journalStats');
+      if(!body || !stats) return;
+      const entries = getAllJournalEntries();
+      const manualCount = manualJournalEntries.length;
+      const autoCount = Math.max(entries.length - manualCount, 0);
+      const totalDebit = entries.reduce((sum, entry) => sum + (entry.lines || []).reduce((s, line) => s + Number(line.debit || 0), 0), 0);
+      const totalCredit = entries.reduce((sum, entry) => sum + (entry.lines || []).reduce((s, line) => s + Number(line.credit || 0), 0), 0);
+
+      stats.innerHTML = `
+        <div class="mini-stat"><span>إجمالي القيود</span><strong>${entries.length}</strong></div>
+        <div class="mini-stat"><span>قيود تلقائية</span><strong>${autoCount}</strong></div>
+        <div class="mini-stat"><span>قيود يدوية</span><strong>${manualCount}</strong></div>
+        <div class="mini-stat"><span>إجمالي الحركة</span><strong>${formatMoney(totalDebit)}</strong></div>
+      `;
+
+      if(!entries.length){
+        body.innerHTML = '<tr><td colspan="9" class="empty">لا توجد قيود حتى الآن</td></tr>';
+        return;
+      }
+
+      body.innerHTML = entries.map(entry => {
+        const debit = (entry.lines || []).reduce((sum, line) => sum + Number(line.debit || 0), 0);
+        const credit = (entry.lines || []).reduce((sum, line) => sum + Number(line.credit || 0), 0);
+        const linesHtml = (entry.lines || []).map(line => 
+          `${safeText(line.accountCode)} - ${safeText(line.accountName)}: مدين ${formatMoney(line.debit || 0)} / دائن ${formatMoney(line.credit || 0)}`
+        ).join('<br>');
+        const action = entry.source === 'manual'
+          ? `<button type="button" class="mini-btn delete" onclick="deleteManualJournal('${entry.id}')">حذف</button>`
+          : `<span class="pill">تلقائي</span>`;
+        return `
+          <tr>
+            <td>${safeText(entry.number)}</td>
+            <td>${safeText(entry.date)}</td>
+            <td>${safeText(entry.description || '-')}</td>
+            <td>${safeText(entry.reference || '-')}</td>
+            <td>${formatMoney(debit)}</td>
+            <td>${formatMoney(credit)}</td>
+            <td>${safeText(entry.source === 'manual' ? 'يدوي' : 'تلقائي')}</td>
+            <td>${linesHtml}</td>
+            <td>${action}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderVouchers(){
+      const body = document.getElementById('voucherTableBody');
+      const stats = document.getElementById('voucherStats');
+      if(!body || !stats) return;
+
+      const receiptTotal = vouchers.filter(item => item.type === 'receipt').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const paymentTotal = vouchers.filter(item => item.type === 'payment').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+      stats.innerHTML = `
+        <div class="mini-stat"><span>إجمالي السندات</span><strong>${vouchers.length}</strong></div>
+        <div class="mini-stat"><span>سندات قبض</span><strong>${vouchers.filter(item => item.type === 'receipt').length}</strong></div>
+        <div class="mini-stat"><span>سندات صرف</span><strong>${vouchers.filter(item => item.type === 'payment').length}</strong></div>
+        <div class="mini-stat"><span>إجمالي القبض/الصرف</span><strong>${formatMoney(receiptTotal + paymentTotal)}</strong></div>
+      `;
+
+      if(!vouchers.length){
+        body.innerHTML = '<tr><td colspan="8" class="empty">لا توجد سندات حتى الآن</td></tr>';
+        return;
+      }
+
+      body.innerHTML = vouchers
+        .slice()
+        .sort((a,b) => new Date(b.date) - new Date(a.date))
+        .map(voucher => `
+          <tr>
+            <td>${safeText(voucher.number)}</td>
+            <td>${safeText(getVoucherTypeLabel(voucher.type))}</td>
+            <td>${safeText(voucher.date)}</td>
+            <td>${safeText(voucher.accountName || getAccountName(voucher.accountCode))}</td>
+            <td>${formatMoney(voucher.amount || 0)}</td>
+            <td>${safeText(getPaymentMethodLabel(voucher.method || 'cash'))}</td>
+            <td>${safeText(voucher.description || '-')}</td>
+            <td><button type="button" class="mini-btn delete" onclick="deleteVoucher('${voucher.id}')">حذف</button></td>
+          </tr>
+        `).join('');
+    }
+
+    function renderAccountingSuite(){
+      populateAccountingSelectors();
+      renderAccounts();
+      renderJournal();
+      renderVouchers();
+    }
 
     function formatMoney(value){
       return Number(value || 0).toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج.م';
@@ -1236,12 +1982,12 @@
 
     function normalizeCompanySettings(settings){
       return {
-        companyName: settings?.companyName || 'EliteBooks ERP',
+        companyName: settings?.companyName || 'Qayd ERP',
         tagline: settings?.tagline || 'حلول محاسبية وتقنية',
         address: settings?.address || 'القاهرة - مصر',
         phone: settings?.phone || '01000000000',
         taxNumber: settings?.taxNumber || 'TX-2026-001',
-        logoText: (settings?.logoText || 'EB').toString().slice(0,4).toUpperCase(),
+        logoText: (settings?.logoText || 'Q').toString().slice(0,4).toUpperCase(),
         invoiceFooter: settings?.invoiceFooter || 'شكرًا لتعاملكم معنا - يمكن حفظ هذه الفاتورة PDF من نافذة الطباعة.'
       };
     }
@@ -1355,6 +2101,9 @@
         localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(payments));
         localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
         localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(companySettings));
+        localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(chartOfAccounts));
+        localStorage.setItem(STORAGE_KEYS.manualJournal, JSON.stringify(manualJournalEntries));
+        localStorage.setItem(STORAGE_KEYS.vouchers, JSON.stringify(vouchers));
 
         await Promise.all([
           syncSupabaseTable('customers', customers.map(c => ({
@@ -1560,6 +2309,9 @@
           const savedPayments = JSON.parse(localStorage.getItem(STORAGE_KEYS.payments) || 'null');
           const savedProducts = JSON.parse(localStorage.getItem(STORAGE_KEYS.products) || 'null');
           const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null');
+          const savedAccounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.accounts) || 'null');
+          const savedManualJournal = JSON.parse(localStorage.getItem(STORAGE_KEYS.manualJournal) || 'null');
+          const savedVouchers = JSON.parse(localStorage.getItem(STORAGE_KEYS.vouchers) || 'null');
 
           if(Array.isArray(savedInvoices) && savedInvoices.length) invoices = migrateCollection(savedInvoices, 'inv');
           if(Array.isArray(savedCustomers) && savedCustomers.length) customers = migrateCollection(savedCustomers, 'cus');
@@ -2334,10 +3086,10 @@
     function exportBackupJSON(){
       const payload = {
         exportedAt: new Date().toISOString(),
-        app: 'EliteBooks ERP v2',
-        data: { invoices, customers, payments, cashMovements, products, companySettings }
+        app: 'Qayd ERP v3',
+        data: { invoices, customers, payments, cashMovements, products, companySettings, chartOfAccounts, manualJournalEntries, vouchers }
       };
-      downloadFile('elitebooks-backup.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8;');
+      downloadFile('qayd-backup.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8;');
     }
 
     function restoreBackupObject(parsed){
@@ -2351,6 +3103,9 @@
       cashMovements = raw.cashMovements.map(normalizeCashRecord);
       products = Array.isArray(raw.products) && raw.products.length ? raw.products.map(normalizeProductRecord) : products.map(normalizeProductRecord);
       companySettings = normalizeCompanySettings(raw.companySettings || companySettings);
+      chartOfAccounts = Array.isArray(raw.chartOfAccounts) && raw.chartOfAccounts.length ? raw.chartOfAccounts.map(normalizeAccountRecord) : chartOfAccounts;
+      manualJournalEntries = Array.isArray(raw.manualJournalEntries) ? raw.manualJournalEntries.map(normalizeJournalEntry) : manualJournalEntries;
+      vouchers = Array.isArray(raw.vouchers) ? raw.vouchers.map(normalizeVoucherRecord) : vouchers;
       recalculateAllInvoices();
       saveData();
       renderCustomers();
@@ -2364,6 +3119,9 @@
       resetCashForm();
       resetPaymentForm();
       resetProductForm();
+      resetAccountForm();
+      resetJournalForm();
+      resetVoucherForm();
       fillCompanyForm();
     }
 
@@ -2564,9 +3322,9 @@
           <div class="sheet">
             <div class="header">
               <div style="display:flex;gap:16px;align-items:center">
-                <div class="logo">${safeText(companySettings.logoText || 'EB')}</div>
+                <div class="logo">${safeText(companySettings.logoText || 'Q')}</div>
                 <div class="company">
-                  <h1>${safeText(companySettings.companyName || 'EliteBooks ERP')}</h1>
+                  <h1>${safeText(companySettings.companyName || 'Qayd ERP')}</h1>
                   <p>${safeText(companySettings.tagline || '')}</p>
                   <p>الهاتف: ${safeText(companySettings.phone || '-')}</p>
                   <p>العنوان: ${safeText(companySettings.address || '-')}</p>
@@ -2965,21 +3723,130 @@
       showMessage('paymentMsg', 'تم حفظ الدفعة بنجاح.');
     });
 
-    document.getElementById('companyForm').addEventListener('submit', function(e){
+    document.getElementById('accountForm').addEventListener('submit', function(e){
       e.preventDefault();
-      companySettings = normalizeCompanySettings({
-        companyName: document.getElementById('companyName').value.trim(),
-        tagline: document.getElementById('companyTagline').value.trim(),
-        address: document.getElementById('companyAddress').value.trim(),
-        phone: document.getElementById('companyPhone').value.trim(),
-        taxNumber: document.getElementById('companyTaxNumber').value.trim(),
-        logoText: document.getElementById('companyLogoText').value.trim(),
-        invoiceFooter: document.getElementById('companyInvoiceFooter').value.trim()
+      const data = normalizeAccountRecord({
+        id: editingAccountId || undefined,
+        code: document.getElementById('accountCode').value.trim(),
+        name: document.getElementById('accountName').value.trim(),
+        category: document.getElementById('accountCategory').value,
+        type: document.getElementById('accountType').value
       });
+
+      if(!data.code || !data.name){
+        showMessage('accountMsg', 'أدخل كود الحساب واسم الحساب.');
+        return;
+      }
+
+      const duplicate = chartOfAccounts.some(acc => (acc.code === data.code || acc.name.toLowerCase() === data.name.toLowerCase()) && acc.id !== data.id);
+      if(duplicate){
+        showMessage('accountMsg', 'يوجد حساب بنفس الكود أو الاسم.');
+        return;
+      }
+
+      if(editingAccountId){
+        const index = chartOfAccounts.findIndex(item => item.id === editingAccountId);
+        if(index !== -1){
+          data.createdAt = chartOfAccounts[index].createdAt;
+          data.locked = chartOfAccounts[index].locked;
+          chartOfAccounts[index] = data;
+        }
+        addActivity('تم تعديل حساب محاسبي: ' + data.name);
+        showMessage('accountMsg', 'تم تحديث الحساب بنجاح.');
+      }else{
+        chartOfAccounts.unshift(data);
+        addActivity('تم إنشاء حساب جديد: ' + data.name);
+        showMessage('accountMsg', 'تم حفظ الحساب بنجاح.');
+      }
+
       saveData();
-      fillCompanyForm();
-      addActivity('تم تحديث بيانات الشركة الخاصة بالفواتير الاحترافية.');
-      showMessage('companyMsg', 'تم حفظ بيانات الشركة بنجاح.');
+      renderAccountingSuite();
+      resetAccountForm();
+    });
+
+    document.getElementById('journalForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      const debitCode = document.getElementById('journalDebitAccount').value;
+      const creditCode = document.getElementById('journalCreditAccount').value;
+      const amount = Number(document.getElementById('journalAmount').value || 0);
+      const date = document.getElementById('journalDate').value;
+      const description = document.getElementById('journalDescription').value.trim();
+      const reference = document.getElementById('journalReference').value.trim();
+
+      if(!debitCode || !creditCode || debitCode === creditCode){
+        showMessage('journalMsg', 'اختر حسابين مختلفين للمدين والدائن.');
+        return;
+      }
+      if(!amount || amount <= 0){
+        showMessage('journalMsg', 'أدخل مبلغًا صحيحًا للقيد.');
+        return;
+      }
+
+      manualJournalEntries.unshift(normalizeJournalEntry({
+        number: document.getElementById('journalNumber').value || getNextJournalNumber(),
+        date,
+        description,
+        reference,
+        source: 'manual',
+        lines: [
+          { accountCode: debitCode, accountName: getAccountName(debitCode), debit: amount, credit: 0 },
+          { accountCode: creditCode, accountName: getAccountName(creditCode), debit: 0, credit: amount }
+        ]
+      }));
+
+      saveData();
+      renderAccountingSuite();
+      resetJournalForm();
+      addActivity('تم تسجيل قيد يومية يدوي بقيمة ' + formatMoney(amount) + '.');
+      showMessage('journalMsg', 'تم حفظ القيد اليدوي بنجاح.');
+    });
+
+    document.getElementById('voucherForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      const type = document.getElementById('voucherType').value;
+      const date = document.getElementById('voucherDate').value;
+      const accountCode = document.getElementById('voucherAccount').value;
+      const amount = Number(document.getElementById('voucherAmount').value || 0);
+      const method = document.getElementById('voucherMethod').value;
+      const description = document.getElementById('voucherDescription').value.trim();
+
+      if(!accountCode){
+        showMessage('voucherMsg', 'اختر الحساب المقابل أولًا.');
+        return;
+      }
+      if(!amount || amount <= 0){
+        showMessage('voucherMsg', 'أدخل مبلغ سند صحيح.');
+        return;
+      }
+
+      const voucher = normalizeVoucherRecord({
+        number: document.getElementById('voucherNumber').value || getNextVoucherNumber(),
+        type,
+        date,
+        accountCode,
+        accountName: getAccountName(accountCode),
+        amount,
+        method,
+        description,
+        source: 'manual'
+      });
+
+      vouchers.unshift(voucher);
+      cashMovements.unshift(normalizeCashRecord({
+        type: type === 'payment' ? 'out' : 'in',
+        amount,
+        date,
+        category: type === 'payment' ? 'operations' : 'sales_collection',
+        description: `${getVoucherTypeLabel(type)} - ${description || getAccountName(accountCode)}`,
+        linkedVoucherId: voucher.id
+      }));
+
+      saveData();
+      renderCash();
+      renderReports();
+      resetVoucherForm();
+      addActivity('تم تسجيل ' + getVoucherTypeLabel(type) + ' بقيمة ' + formatMoney(amount) + '.');
+      showMessage('voucherMsg', 'تم حفظ السند بنجاح.');
     });
 
     document.getElementById('generateInvoiceNumberBtn').addEventListener('click', () => {
@@ -2996,6 +3863,9 @@
     document.getElementById('clearProductForm').addEventListener('click', resetProductForm);
     document.getElementById('clearCashForm').addEventListener('click', resetCashForm);
     document.getElementById('clearPaymentForm').addEventListener('click', resetPaymentForm);
+    document.getElementById('clearAccountForm').addEventListener('click', resetAccountForm);
+    document.getElementById('clearJournalForm').addEventListener('click', resetJournalForm);
+    document.getElementById('clearVoucherForm').addEventListener('click', resetVoucherForm);
 
     document.getElementById('addItemBtn').addEventListener('click', () => addInvoiceItem());
 
@@ -3081,6 +3951,9 @@
         resetCashForm();
         resetPaymentForm();
         resetProductForm();
+        resetAccountForm();
+        resetJournalForm();
+        resetVoucherForm();
         renderCustomers();
         renderProducts();
         applyInvoiceFilters();
