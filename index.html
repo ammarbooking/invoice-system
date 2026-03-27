@@ -2205,6 +2205,11 @@
         localStorage.setItem(STORAGE_KEYS.manualJournal, JSON.stringify(manualJournalEntries));
         localStorage.setItem(STORAGE_KEYS.vouchers, JSON.stringify(vouchers));
 
+        if(!currentUser || !currentUser.id){
+          console.log('Saved locally only');
+          return;
+        }
+
         await Promise.all([
           syncSupabaseTable('customers', customers.map(c => ({
             id: c.id,
@@ -2294,8 +2299,66 @@
       }, prefix));
     }
 
-    async function loadData(){
+    function loadLocalData(){
       try{
+        const savedInvoices = JSON.parse(localStorage.getItem(STORAGE_KEYS.invoices) || 'null');
+        const savedCustomers = JSON.parse(localStorage.getItem(STORAGE_KEYS.customers) || 'null');
+        const savedCash = JSON.parse(localStorage.getItem(STORAGE_KEYS.cash) || 'null');
+        const savedPayments = JSON.parse(localStorage.getItem(STORAGE_KEYS.payments) || 'null');
+        const savedProducts = JSON.parse(localStorage.getItem(STORAGE_KEYS.products) || 'null');
+        const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null');
+        const savedAccounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.accounts) || 'null');
+        const savedManualJournal = JSON.parse(localStorage.getItem(STORAGE_KEYS.manualJournal) || 'null');
+        const savedVouchers = JSON.parse(localStorage.getItem(STORAGE_KEYS.vouchers) || 'null');
+
+        if(Array.isArray(savedInvoices)) invoices = migrateCollection(savedInvoices, 'inv');
+        if(Array.isArray(savedCustomers)) customers = migrateCollection(savedCustomers, 'cus');
+        if(Array.isArray(savedCash)) cashMovements = migrateCollection(savedCash, 'cash');
+        if(Array.isArray(savedPayments)) payments = migrateCollection(savedPayments, 'pay');
+        if(Array.isArray(savedProducts)) products = savedProducts.map(item => normalizeProductRecord(item));
+        if(savedSettings && typeof savedSettings === 'object') companySettings = normalizeCompanySettings(savedSettings);
+        if(Array.isArray(savedAccounts)) chartOfAccounts = savedAccounts.map(item => withMeta({
+          ...item,
+          code: item.code || '',
+          name: item.name || '',
+          type: item.type || 'asset',
+          parentId: item.parentId || '',
+          notes: item.notes || ''
+        }, 'acc'));
+        if(Array.isArray(savedManualJournal)) manualJournalEntries = savedManualJournal.map(item => withMeta({
+          ...item,
+          date: normalizeDate(item.date),
+          lines: Array.isArray(item.lines) ? item.lines : []
+        }, 'je'));
+        if(Array.isArray(savedVouchers)) vouchers = savedVouchers.map(item => withMeta({
+          ...item,
+          date: normalizeDate(item.date),
+          amount: Number(item.amount || 0)
+        }, 'vch'));
+
+        recalculateAllInvoices();
+      }catch(err){
+        console.error('Local load error', err);
+      }
+    }
+
+    function hasAnyCloudData(responses){
+      return responses.some(res => {
+        if(!res) return false;
+        if(Array.isArray(res.data)) return res.data.length > 0;
+        return !!res.data;
+      });
+    }
+
+    async function loadData(){
+      loadLocalData();
+
+      try{
+        if(!currentUser || !currentUser.id){
+          console.log('No current user, local data loaded only');
+          return;
+        }
+
         const [
           customersResponse,
           productsResponse,
@@ -2312,11 +2375,32 @@
           supabaseClient.from('settings').select('*').eq('user_id', currentUser.id).maybeSingle()
         ]);
 
-        if(customersResponse.error || productsResponse.error || invoicesResponse.error || paymentsResponse.error || cashResponse.error || settingsResponse.error){
-          throw new Error('تعذر تحميل البيانات من Supabase. تأكد من إنشاء الجداول وسياسات الوصول.');
+        if(
+          customersResponse.error ||
+          productsResponse.error ||
+          invoicesResponse.error ||
+          paymentsResponse.error ||
+          cashResponse.error ||
+          settingsResponse.error
+        ){
+          throw new Error('Cloud load failed');
         }
 
-        if(Array.isArray(customersResponse.data) && customersResponse.data.length){
+        const cloudHasData = hasAnyCloudData([
+          customersResponse,
+          productsResponse,
+          invoicesResponse,
+          paymentsResponse,
+          cashResponse,
+          settingsResponse
+        ]);
+
+        if(!cloudHasData){
+          console.log('Cloud empty, keeping local data');
+          return;
+        }
+
+        if(Array.isArray(customersResponse.data)){
           customers = customersResponse.data.map(c => withMeta({
             id: c.id,
             name: c.name,
@@ -2327,7 +2411,7 @@
           }, 'cus'));
         }
 
-        if(Array.isArray(productsResponse.data) && productsResponse.data.length){
+        if(Array.isArray(productsResponse.data)){
           products = productsResponse.data.map(p => normalizeProductRecord({
             id: p.id,
             code: p.code,
@@ -2339,7 +2423,7 @@
           }));
         }
 
-        if(Array.isArray(invoicesResponse.data) && invoicesResponse.data.length){
+        if(Array.isArray(invoicesResponse.data)){
           invoices = invoicesResponse.data.map(inv => normalizeInvoiceRecord({
             id: inv.id,
             number: inv.number,
@@ -2359,7 +2443,7 @@
           }));
         }
 
-        if(Array.isArray(paymentsResponse.data) && paymentsResponse.data.length){
+        if(Array.isArray(paymentsResponse.data)){
           payments = paymentsResponse.data.map(p => normalizePaymentRecord({
             id: p.id,
             invoiceId: p.invoice_id,
@@ -2375,7 +2459,7 @@
           }));
         }
 
-        if(Array.isArray(cashResponse.data) && cashResponse.data.length){
+        if(Array.isArray(cashResponse.data)){
           cashMovements = cashResponse.data.map(c => normalizeCashRecord({
             id: c.id,
             type: c.type,
@@ -2399,29 +2483,13 @@
             invoiceFooter: settingsResponse.data.invoice_footer
           });
         }
+
+        recalculateAllInvoices();
       }catch(err){
         console.error('Load data error', err);
-        addActivity('تعذر تحميل البيانات من قاعدة البيانات، تم استخدام البيانات المحلية/الافتراضية.');
-        try{
-          const savedInvoices = JSON.parse(localStorage.getItem(STORAGE_KEYS.invoices) || 'null');
-          const savedCustomers = JSON.parse(localStorage.getItem(STORAGE_KEYS.customers) || 'null');
-          const savedCash = JSON.parse(localStorage.getItem(STORAGE_KEYS.cash) || 'null');
-          const savedPayments = JSON.parse(localStorage.getItem(STORAGE_KEYS.payments) || 'null');
-          const savedProducts = JSON.parse(localStorage.getItem(STORAGE_KEYS.products) || 'null');
-          const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null');
-          const savedAccounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.accounts) || 'null');
-          const savedManualJournal = JSON.parse(localStorage.getItem(STORAGE_KEYS.manualJournal) || 'null');
-          const savedVouchers = JSON.parse(localStorage.getItem(STORAGE_KEYS.vouchers) || 'null');
-
-          if(Array.isArray(savedInvoices) && savedInvoices.length) invoices = migrateCollection(savedInvoices, 'inv');
-          if(Array.isArray(savedCustomers) && savedCustomers.length) customers = migrateCollection(savedCustomers, 'cus');
-          if(Array.isArray(savedCash) && savedCash.length) cashMovements = migrateCollection(savedCash, 'cash');
-          if(Array.isArray(savedPayments) && savedPayments.length) payments = migrateCollection(savedPayments, 'pay');
-          if(Array.isArray(savedProducts) && savedProducts.length) products = savedProducts.map(normalizeProductRecord);
-          if(savedSettings && typeof savedSettings === 'object') companySettings = normalizeCompanySettings(savedSettings);
-        }catch(localErr){
-          console.error('Local fallback error', localErr);
-        }
+        console.log('Using local data instead');
+        addActivity('تعذر تحميل البيانات من قاعدة البيانات، تم استخدام البيانات المحلية.');
+        loadLocalData();
       }
 
       invoices = invoices.map(normalizeInvoiceRecord);
