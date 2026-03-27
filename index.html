@@ -1332,17 +1332,43 @@
       }
     }
 
+    const STORAGE_KEY_PREFIX = 'qayd_app';
     const STORAGE_KEYS = {
-      invoices: 'qayd_invoices',
-      customers: 'qayd_customers',
-      cash: 'qayd_cash_movements',
-      payments: 'qayd_payments',
-      products: 'qayd_products',
-      settings: 'qayd_settings',
-      accounts: 'qayd_accounts',
-      manualJournal: 'qayd_manual_journal',
-      vouchers: 'qayd_vouchers'
+      invoices: 'invoices',
+      customers: 'customers',
+      cash: 'cash_movements',
+      payments: 'payments',
+      products: 'products',
+      settings: 'settings',
+      accounts: 'accounts',
+      manualJournal: 'manual_journal',
+      vouchers: 'vouchers'
     };
+
+    function getStorageScopeUser(user = currentUser){
+      const raw = String(user?.id || user?.email || 'guest').trim().toLowerCase();
+      return raw.replace(/[^a-z0-9@._-]+/g, '_');
+    }
+
+    function getScopedStorageKey(key, user = currentUser){
+      return `${STORAGE_KEY_PREFIX}_${getStorageScopeUser(user)}_${key}`;
+    }
+
+    function storageSet(key, value, user = currentUser){
+      localStorage.setItem(getScopedStorageKey(key, user), JSON.stringify(value));
+    }
+
+    function storageGet(key, user = currentUser){
+      return JSON.parse(localStorage.getItem(getScopedStorageKey(key, user)) || 'null');
+    }
+
+    function storageRemove(key, user = currentUser){
+      localStorage.removeItem(getScopedStorageKey(key, user));
+    }
+
+    function clearScopedAppStorage(user = currentUser){
+      Object.values(STORAGE_KEYS).forEach(key => storageRemove(key, user));
+    }
 
     let editingInvoiceId = null;
     let editingCustomerId = null;
@@ -2195,15 +2221,15 @@
 
     async function saveData(){
       try{
-        localStorage.setItem(STORAGE_KEYS.invoices, JSON.stringify(invoices));
-        localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(customers));
-        localStorage.setItem(STORAGE_KEYS.cash, JSON.stringify(cashMovements));
-        localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(payments));
-        localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
-        localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(companySettings));
-        localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(chartOfAccounts));
-        localStorage.setItem(STORAGE_KEYS.manualJournal, JSON.stringify(manualJournalEntries));
-        localStorage.setItem(STORAGE_KEYS.vouchers, JSON.stringify(vouchers));
+        storageSet(STORAGE_KEYS.invoices, invoices);
+        storageSet(STORAGE_KEYS.customers, customers);
+        storageSet(STORAGE_KEYS.cash, cashMovements);
+        storageSet(STORAGE_KEYS.payments, payments);
+        storageSet(STORAGE_KEYS.products, products);
+        storageSet(STORAGE_KEYS.settings, companySettings);
+        storageSet(STORAGE_KEYS.accounts, chartOfAccounts);
+        storageSet(STORAGE_KEYS.manualJournal, manualJournalEntries);
+        storageSet(STORAGE_KEYS.vouchers, vouchers);
 
         if(!currentUser || !currentUser.id){
           console.log('Saved locally only');
@@ -2301,15 +2327,15 @@
 
     function loadLocalData(){
       try{
-        const savedInvoices = JSON.parse(localStorage.getItem(STORAGE_KEYS.invoices) || 'null');
-        const savedCustomers = JSON.parse(localStorage.getItem(STORAGE_KEYS.customers) || 'null');
-        const savedCash = JSON.parse(localStorage.getItem(STORAGE_KEYS.cash) || 'null');
-        const savedPayments = JSON.parse(localStorage.getItem(STORAGE_KEYS.payments) || 'null');
-        const savedProducts = JSON.parse(localStorage.getItem(STORAGE_KEYS.products) || 'null');
-        const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null');
-        const savedAccounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.accounts) || 'null');
-        const savedManualJournal = JSON.parse(localStorage.getItem(STORAGE_KEYS.manualJournal) || 'null');
-        const savedVouchers = JSON.parse(localStorage.getItem(STORAGE_KEYS.vouchers) || 'null');
+        const savedInvoices = storageGet(STORAGE_KEYS.invoices);
+        const savedCustomers = storageGet(STORAGE_KEYS.customers);
+        const savedCash = storageGet(STORAGE_KEYS.cash);
+        const savedPayments = storageGet(STORAGE_KEYS.payments);
+        const savedProducts = storageGet(STORAGE_KEYS.products);
+        const savedSettings = storageGet(STORAGE_KEYS.settings);
+        const savedAccounts = storageGet(STORAGE_KEYS.accounts);
+        const savedManualJournal = storageGet(STORAGE_KEYS.manualJournal);
+        const savedVouchers = storageGet(STORAGE_KEYS.vouchers);
 
         if(Array.isArray(savedInvoices)) invoices = migrateCollection(savedInvoices, 'inv');
         if(Array.isArray(savedCustomers)) customers = migrateCollection(savedCustomers, 'cus');
@@ -4119,13 +4145,22 @@
       }catch(err){}
     }
 
+    function buildLocalModeUser(seedUser = null){
+      const baseEmail = String(seedUser?.email || '').trim().toLowerCase() || `local_${Date.now()}@qayd.app`;
+      const safeId = `local-${baseEmail.replace(/[^a-z0-9@._-]+/g, '_')}`;
+      return {
+        id: safeId,
+        email: baseEmail,
+        user_metadata: { full_name: seedUser?.user_metadata?.full_name || seedUser?.full_name || 'Local User' }
+      };
+    }
+
     async function launchLocalMode(seedUser = null){
       localMode = true;
-      currentUser = seedUser || getLocalSessionUser() || {
-        id: 'local-user',
+      currentUser = buildLocalModeUser(seedUser || getLocalSessionUser() || {
         email: 'local@qayd.app',
         user_metadata: { full_name: 'Local User' }
-      };
+      });
       setLocalSessionUser(currentUser);
       updateUserUI(currentUser, {
         plan: 'local',
@@ -4289,7 +4324,6 @@
 
         if(document.getElementById('authOverlay').classList.contains('show')){
           await launchLocalMode(user || {
-            id: 'local-user',
             email,
             user_metadata: { full_name: fullName || 'Qayd Local User' }
           });
