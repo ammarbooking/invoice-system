@@ -247,10 +247,55 @@
       .alert-grid,.mini-stats{grid-template-columns:1fr}
     }
 
+
+    .auth-overlay{position:fixed;inset:0;background:rgba(5,10,20,.88);backdrop-filter:blur(14px);display:none;align-items:center;justify-content:center;padding:20px;z-index:9999}
+    .auth-overlay.show{display:flex}
+    .auth-card{width:min(520px,100%);padding:28px;border-radius:24px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.04));box-shadow:var(--shadow)}
+    .auth-card h2{margin:0 0 8px;font-size:28px}
+    .auth-card p{margin:0 0 18px;color:var(--muted)}
+    .auth-switch{display:flex;gap:10px;margin-bottom:16px}
+    .auth-switch button{flex:1}
+    .app.hidden{display:none}
+    .user-pill{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:13px}
+    .user-pill strong{font-size:13px}
+    .subscription-box{margin-top:14px;padding:12px 14px;border-radius:14px;background:rgba(91,140,255,.12);border:1px solid rgba(91,140,255,.22);color:#dce8ff}
+
   </style>
 </head>
 <body>
-  <div class="app">
+  <div id="authOverlay" class="auth-overlay show">
+    <div class="auth-card">
+      <h2>تسجيل الدخول إلى EliteBooks ERP</h2>
+      <p>اعمل حساب وابدأ فترة تجريبية 7 أيام. كل بيانات كل عميل معزولة بحسابه.</p>
+      <div class="auth-switch">
+        <button id="showLoginBtn" type="button" class="btn primary">دخول</button>
+        <button id="showSignupBtn" type="button" class="btn secondary">حساب جديد</button>
+      </div>
+      <form id="authForm">
+        <div class="form-grid">
+          <div id="authNameField" class="field full" style="display:none">
+            <label>الاسم</label>
+            <input id="authName" type="text" placeholder="اسمك أو اسم الشركة">
+          </div>
+          <div class="field full">
+            <label>البريد الإلكتروني</label>
+            <input id="authEmail" type="email" placeholder="name@email.com" required>
+          </div>
+          <div class="field full">
+            <label>كلمة المرور</label>
+            <input id="authPassword" type="password" placeholder="••••••••" required>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button id="authSubmitBtn" type="submit" class="btn primary">دخول</button>
+        </div>
+      </form>
+      <div id="authMsg" class="footer-msg" style="display:block;margin-top:14px"></div>
+      <div id="subscriptionNotice" class="subscription-box" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="app hidden">
     <aside class="sidebar">
       <div class="brand">
         <div class="logo">₿</div>
@@ -277,6 +322,8 @@
           <input id="searchInput" type="text" placeholder="ابحث عن عميل أو فاتورة...">
         </div>
         <div class="actions">
+          <div id="userInfoPill" class="user-pill" style="display:none"></div>
+          <button id="logoutBtn" type="button" class="btn secondary" style="display:none">تسجيل خروج</button>
           <button id="exportBtn" type="button" class="btn secondary">تصدير الفواتير CSV</button>
           <button id="backupBtn" type="button" class="btn secondary">نسخة احتياطية</button>
           <button id="gotoInvoiceBtn" type="button" class="btn primary">إضافة فاتورة</button>
@@ -844,6 +891,126 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtc2JxanRnZXVmY2Z3ZW9kdnhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDk0NTYsImV4cCI6MjA5MDE4NTQ1Nn0.xsl6QUrYYw_17GFxCQxi32LnP-8ohOlYgMpiONYMMG8";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+
+    function setAuthMessage(msg, isError = false){
+      const box = document.getElementById('authMsg');
+      if(!box) return;
+      box.textContent = msg || '';
+      box.style.background = isError ? 'rgba(255,93,115,.12)' : 'rgba(32,201,151,.12)';
+      box.style.color = isError ? '#ffc3cb' : '#b9ffe9';
+      box.style.border = isError ? '1px solid rgba(255,93,115,.25)' : '1px solid rgba(32,201,151,.22)';
+    }
+
+    function setAuthMode(mode){
+      authMode = mode;
+      const isSignup = mode === 'signup';
+      document.getElementById('authNameField').style.display = isSignup ? 'flex' : 'none';
+      document.getElementById('authSubmitBtn').textContent = isSignup ? 'إنشاء الحساب' : 'دخول';
+      setAuthMessage(isSignup ? 'سيتم إنشاء حساب وتجربة مجانية 7 أيام.' : 'سجّل الدخول للوصول لبياناتك.', false);
+    }
+
+    function showAuthOverlay(){
+      document.getElementById('authOverlay').classList.add('show');
+      document.querySelector('.app').classList.add('hidden');
+      document.getElementById('logoutBtn').style.display = 'none';
+      document.getElementById('userInfoPill').style.display = 'none';
+    }
+
+    function hideAuthOverlay(){
+      document.getElementById('authOverlay').classList.remove('show');
+      document.querySelector('.app').classList.remove('hidden');
+      document.getElementById('logoutBtn').style.display = 'inline-flex';
+      document.getElementById('userInfoPill').style.display = 'flex';
+    }
+
+    async function getCurrentUser(){
+      const { data, error } = await supabaseClient.auth.getUser();
+      if(error) throw error;
+      return data.user || null;
+    }
+
+    async function ensureProfileAndSubscription(user, fullName = ''){
+      if(!user) return;
+      await supabaseClient.from('profiles').upsert([{
+        id: user.id,
+        email: user.email,
+        full_name: fullName || user.user_metadata?.full_name || '',
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'id' });
+
+      const { data: sub } = await supabaseClient
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if(!sub){
+        const expiresAt = new Date(Date.now() + 7*24*60*60*1000).toISOString();
+        await supabaseClient.from('subscriptions').insert([{
+          user_id: user.id,
+          plan: 'trial',
+          status: 'active',
+          expires_at: expiresAt
+        }]);
+      }
+    }
+
+    async function getActiveSubscription(userId){
+      const { data, error } = await supabaseClient
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if(error) throw error;
+      return data || null;
+    }
+
+    async function verifySubscription(user){
+      const notice = document.getElementById('subscriptionNotice');
+      notice.style.display = 'none';
+      if(!user) return false;
+      const sub = await getActiveSubscription(user.id);
+      if(!sub){
+        notice.style.display = 'block';
+        notice.textContent = 'لا يوجد اشتراك مرتبط بهذا الحساب.';
+        showAuthOverlay();
+        return false;
+      }
+      const isExpired = sub.expires_at && new Date(sub.expires_at) < new Date();
+      if(sub.status !== 'active' || isExpired){
+        notice.style.display = 'block';
+        notice.textContent = 'الاشتراك غير نشط أو انتهت الفترة التجريبية. فعّل الاشتراك من لوحة الإدارة.';
+        showAuthOverlay();
+        return false;
+      }
+      return true;
+    }
+
+    function updateUserUI(user, subscription){
+      const pill = document.getElementById('userInfoPill');
+      const until = subscription?.expires_at ? new Date(subscription.expires_at).toLocaleDateString('ar-EG') : '-';
+      pill.innerHTML = `<span>👤</span><div><strong>${safeText(user.email || '')}</strong><div style="color:var(--muted)">${safeText(subscription?.plan || 'trial')} • صالح حتى ${safeText(until)}</div></div>`;
+    }
+
+    async function loginOrSignup(email, password, fullName){
+      if(authMode === 'signup'){
+        const { data, error } = await supabaseClient.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName || '' } }
+        });
+        if(error) throw error;
+        const user = data.user;
+        if(user){
+          await ensureProfileAndSubscription(user, fullName);
+        }
+        return user;
+      }
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if(error) throw error;
+      return data.user;
+    }
+
     const STORAGE_KEYS = {
       invoices: 'elitebooks_invoices',
       customers: 'elitebooks_customers',
@@ -858,6 +1025,9 @@
     let editingCashId = null;
     let editingPaymentId = null;
     let editingProductId = null;
+    let currentUser = null;
+    let authMode = 'login';
+    let appBooted = false;
 
     let companySettings = {
       companyName: 'EliteBooks ERP',
@@ -1139,6 +1309,44 @@
       }
     }
 
+    async function syncSupabaseTable(tableName, rows){
+      if(!currentUser) throw new Error('يجب تسجيل الدخول أولًا');
+      const { data: existingRows, error: fetchError } = await supabaseClient
+        .from(tableName)
+        .select('id')
+        .eq('user_id', currentUser.id);
+
+      if(fetchError){
+        throw fetchError;
+      }
+
+      const localIds = new Set((rows || []).map(row => String(row.id)));
+      const idsToDelete = (existingRows || [])
+        .map(row => String(row.id))
+        .filter(id => !localIds.has(id));
+
+      if(idsToDelete.length){
+        const { error: deleteError } = await supabaseClient
+          .from(tableName)
+          .delete()
+          .in('id', idsToDelete);
+
+        if(deleteError){
+          throw deleteError;
+        }
+      }
+
+      if(rows && rows.length){
+        const { error: upsertError } = await supabaseClient
+          .from(tableName)
+          .upsert(rows, { onConflict: 'id' });
+
+        if(upsertError){
+          throw upsertError;
+        }
+      }
+    }
+
     async function saveData(){
       try{
         localStorage.setItem(STORAGE_KEYS.invoices, JSON.stringify(invoices));
@@ -1148,33 +1356,29 @@
         localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
         localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(companySettings));
 
-        const [
-          customersResult,
-          productsResult,
-          invoicesResult,
-          paymentsResult,
-          cashResult,
-          settingsResult
-        ] = await Promise.all([
-          supabaseClient.from('customers').upsert(customers.map(c => ({
+        await Promise.all([
+          syncSupabaseTable('customers', customers.map(c => ({
             id: c.id,
+            user_id: currentUser.id,
             name: c.name,
             phone: c.phone,
             email: c.email,
             created_at: c.createdAt || new Date().toISOString(),
             updated_at: new Date().toISOString()
-          })), { onConflict: 'id' }),
-          supabaseClient.from('products').upsert(products.map(p => ({
+          }))),
+          syncSupabaseTable('products', products.map(p => ({
             id: p.id,
+            user_id: currentUser.id,
             code: p.code,
             name: p.name,
             price: Number(p.price || 0),
             description: p.description || '',
             created_at: p.createdAt || new Date().toISOString(),
             updated_at: new Date().toISOString()
-          })), { onConflict: 'id' }),
-          supabaseClient.from('invoices').upsert(invoices.map(inv => ({
+          }))),
+          syncSupabaseTable('invoices', invoices.map(inv => ({
             id: inv.id,
+            user_id: currentUser.id,
             number: inv.number,
             customer: inv.customer,
             amount: Number(inv.amount || 0),
@@ -1189,9 +1393,10 @@
             items: inv.items || [],
             created_at: inv.createdAt || new Date().toISOString(),
             updated_at: new Date().toISOString()
-          })), { onConflict: 'id' }),
-          supabaseClient.from('payments').upsert(payments.map(p => ({
+          }))),
+          syncSupabaseTable('payments', payments.map(p => ({
             id: p.id,
+            user_id: currentUser.id,
             invoice_id: p.invoiceId,
             invoice_number: p.invoiceNumber,
             customer: p.customer,
@@ -1202,9 +1407,10 @@
             add_to_cash: p.addToCash,
             created_at: p.createdAt || new Date().toISOString(),
             updated_at: new Date().toISOString()
-          })), { onConflict: 'id' }),
-          supabaseClient.from('cash_movements').upsert(cashMovements.map(c => ({
+          }))),
+          syncSupabaseTable('cash_movements', cashMovements.map(c => ({
             id: c.id,
+            user_id: currentUser.id,
             type: c.type,
             amount: Number(c.amount || 0),
             date: c.date,
@@ -1212,9 +1418,10 @@
             description: c.description || '',
             created_at: c.createdAt || new Date().toISOString(),
             updated_at: new Date().toISOString()
-          })), { onConflict: 'id' }),
+          }))),
           supabaseClient.from('settings').upsert([{
-            id: 'main_settings',
+            id: `main_settings_${currentUser.id}`,
+            user_id: currentUser.id,
             company_name: companySettings.companyName,
             tagline: companySettings.tagline,
             address: companySettings.address,
@@ -1226,14 +1433,6 @@
             updated_at: new Date().toISOString()
           }], { onConflict: 'id' })
         ]);
-
-        const syncErrors = [customersResult, productsResult, invoicesResult, paymentsResult, cashResult, settingsResult]
-          .map(r => r.error)
-          .filter(Boolean);
-
-        if(syncErrors.length){
-          console.error('Supabase sync errors:', syncErrors);
-        }
       }catch(err){
         console.error('Save data error', err);
       }
@@ -1256,12 +1455,12 @@
           cashResponse,
           settingsResponse
         ] = await Promise.all([
-          supabaseClient.from('customers').select('*').order('created_at', { ascending: true }),
-          supabaseClient.from('products').select('*').order('created_at', { ascending: true }),
-          supabaseClient.from('invoices').select('*').order('date', { ascending: false }),
-          supabaseClient.from('payments').select('*').order('date', { ascending: false }),
-          supabaseClient.from('cash_movements').select('*').order('date', { ascending: false }),
-          supabaseClient.from('settings').select('*').eq('id', 'main_settings').maybeSingle()
+          supabaseClient.from('customers').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: true }),
+          supabaseClient.from('products').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: true }),
+          supabaseClient.from('invoices').select('*').eq('user_id', currentUser.id).order('date', { ascending: false }),
+          supabaseClient.from('payments').select('*').eq('user_id', currentUser.id).order('date', { ascending: false }),
+          supabaseClient.from('cash_movements').select('*').eq('user_id', currentUser.id).order('date', { ascending: false }),
+          supabaseClient.from('settings').select('*').eq('user_id', currentUser.id).maybeSingle()
         ]);
 
         if(customersResponse.error || productsResponse.error || invoicesResponse.error || paymentsResponse.error || cashResponse.error || settingsResponse.error){
@@ -2346,6 +2545,19 @@
       .alert-grid,.mini-stats{grid-template-columns:1fr}
     }
 
+
+    .auth-overlay{position:fixed;inset:0;background:rgba(5,10,20,.88);backdrop-filter:blur(14px);display:none;align-items:center;justify-content:center;padding:20px;z-index:9999}
+    .auth-overlay.show{display:flex}
+    .auth-card{width:min(520px,100%);padding:28px;border-radius:24px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.04));box-shadow:var(--shadow)}
+    .auth-card h2{margin:0 0 8px;font-size:28px}
+    .auth-card p{margin:0 0 18px;color:var(--muted)}
+    .auth-switch{display:flex;gap:10px;margin-bottom:16px}
+    .auth-switch button{flex:1}
+    .app.hidden{display:none}
+    .user-pill{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:13px}
+    .user-pill strong{font-size:13px}
+    .subscription-box{margin-top:14px;padding:12px 14px;border-radius:14px;background:rgba(91,140,255,.12);border:1px solid rgba(91,140,255,.22);color:#dce8ff}
+
   </style>
         </head>
         <body>
@@ -2851,19 +3063,80 @@
     });
 
     async function initializeApp(){
-      await loadData();
-      resetInvoiceForm();
-      resetCashForm();
-      resetPaymentForm();
-      resetProductForm();
-      renderCustomers();
-      renderProducts();
-      applyInvoiceFilters();
-      renderPayments();
-      renderCash();
-      renderStats();
-      renderReports();
+      try{
+        currentUser = await getCurrentUser();
+        if(!currentUser){
+          showAuthOverlay();
+          setAuthMode('login');
+          return;
+        }
+        await ensureProfileAndSubscription(currentUser);
+        const allowed = await verifySubscription(currentUser);
+        if(!allowed) return;
+        const subscription = await getActiveSubscription(currentUser.id);
+        updateUserUI(currentUser, subscription);
+        hideAuthOverlay();
+        await loadData();
+        resetInvoiceForm();
+        resetCashForm();
+        resetPaymentForm();
+        resetProductForm();
+        renderCustomers();
+        renderProducts();
+        applyInvoiceFilters();
+        renderPayments();
+        renderCash();
+        renderStats();
+        renderReports();
+        appBooted = true;
+      }catch(err){
+        console.error(err);
+        showAuthOverlay();
+        setAuthMessage(err.message || 'تعذر تهيئة النظام.', true);
+      }
     }
+
+    document.getElementById('showLoginBtn').addEventListener('click', () => setAuthMode('login'));
+    document.getElementById('showSignupBtn').addEventListener('click', () => setAuthMode('signup'));
+    document.getElementById('authForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value.trim();
+      const fullName = document.getElementById('authName').value.trim();
+      try{
+        setAuthMessage('جارٍ التنفيذ...', false);
+        const user = await loginOrSignup(email, password, fullName);
+        if(authMode === 'signup'){
+          setAuthMode('login');
+          setAuthMessage('تم إنشاء الحساب. لو ظهر تأكيد بالبريد فعّله ثم سجّل الدخول.', false);
+          return;
+        }
+        currentUser = user;
+        await initializeApp();
+      }catch(err){
+        console.error(err);
+        setAuthMessage(err.message || 'تعذر تنفيذ العملية.', true);
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      currentUser = null;
+      showAuthOverlay();
+      setAuthMode('login');
+      setAuthMessage('تم تسجيل الخروج بنجاح.', false);
+    });
+
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      currentUser = session?.user || null;
+      if(!currentUser){
+        showAuthOverlay();
+        return;
+      }
+      if(!appBooted){
+        await initializeApp();
+      }
+    });
 
     initializeApp();
   </script>
