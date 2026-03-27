@@ -1115,6 +1115,36 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
+
+    let initializingApp = false;
+
+    function normalizeErrorMessage(err){
+      if(!err) return 'حدث خطأ غير متوقع.';
+      if(typeof err === 'string') return err;
+      if(err.message) return err.message;
+      try{
+        return JSON.stringify(err);
+      }catch(_e){
+        return String(err);
+      }
+    }
+
+    function setAuthBusy(isBusy, message = ''){
+      const submitBtn = document.getElementById('authSubmitBtn');
+      const localBtn = document.getElementById('localAccessBtn');
+      if(submitBtn){
+        submitBtn.disabled = isBusy;
+        submitBtn.style.opacity = isBusy ? '.7' : '1';
+      }
+      if(localBtn){
+        localBtn.disabled = isBusy;
+        localBtn.style.opacity = isBusy ? '.7' : '1';
+      }
+      if(message){
+        setAuthMessage(message, false);
+      }
+    }
+
     function setAuthMessage(msg, isError = false){
       const box = document.getElementById('authMsg');
       if(!box) return;
@@ -1147,9 +1177,17 @@
     }
 
     async function getCurrentUser(){
-      const { data, error } = await supabaseClient.auth.getUser();
-      if(error) throw error;
-      return data.user || null;
+      try{
+        const { data, error } = await supabaseClient.auth.getUser();
+        if(error){
+          console.warn('getCurrentUser fallback:', normalizeErrorMessage(error));
+          return null;
+        }
+        return data.user || null;
+      }catch(err){
+        console.warn('getCurrentUser exception:', normalizeErrorMessage(err));
+        return null;
+      }
     }
 
     async function ensureProfileAndSubscription(user, fullName = ''){
@@ -1255,22 +1293,43 @@
     }
 
     async function loginOrSignup(email, password, fullName){
-      if(authMode === 'signup'){
-        const { data, error } = await supabaseClient.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: fullName || '' } }
-        });
-        if(error) throw error;
-        const user = data.user;
-        if(user){
-          await ensureProfileAndSubscription(user, fullName);
+      try{
+        if(authMode === 'signup'){
+          const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: fullName || '' } }
+          });
+          if(error) throw error;
+          const user = data.user;
+          if(user){
+            try{
+              await ensureProfileAndSubscription(user, fullName);
+            }catch(profileErr){
+              console.warn('ensureProfileAndSubscription warning:', normalizeErrorMessage(profileErr));
+            }
+          }
+          return user;
         }
-        return user;
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if(error) throw error;
+        if(!data?.user){
+          throw new Error('لم يتم العثور على المستخدم بعد تسجيل الدخول.');
+        }
+        return data.user;
+      }catch(err){
+        const msg = normalizeErrorMessage(err).toLowerCase();
+        if(msg.includes('invalid login credentials')){
+          throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+        }
+        if(msg.includes('email not confirmed')){
+          throw new Error('الحساب يحتاج تفعيل البريد الإلكتروني أولًا. افتح رسالة التفعيل ثم جرّب تسجيل الدخول.');
+        }
+        if(msg.includes('failed to fetch') || msg.includes('network') || msg.includes('fetch')){
+          throw new Error('تعذر الاتصال بخدمة الدخول. تحقق من الإنترنت أو استخدم الدخول المحلي.');
+        }
+        throw new Error(normalizeErrorMessage(err));
       }
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if(error) throw error;
-      return data.user;
     }
 
     const STORAGE_KEYS = {
@@ -4025,6 +4084,8 @@
     }
 
     async function initializeApp(preloadedUser = null){
+      if(initializingApp) return;
+      initializingApp = true;
       try{
         if(localMode){
           await launchLocalMode(currentUser || preloadedUser || getLocalSessionUser());
@@ -4041,13 +4102,41 @@
           setAuthMode('login');
           return;
         }
-        await ensureProfileAndSubscription(currentUser);
-        const allowed = await verifySubscription(currentUser);
-        if(!allowed) return;
-        const subscription = await getActiveSubscription(currentUser.id);
+
+        try{
+          await ensureProfileAndSubscription(currentUser);
+        }catch(profileErr){
+          console.warn('Profile/subscription setup warning:', normalizeErrorMessage(profileErr));
+        }
+
+        let allowed = true;
+        try{
+          allowed = await verifySubscription(currentUser);
+        }catch(subscriptionErr){
+          console.warn('verifySubscription warning:', normalizeErrorMessage(subscriptionErr));
+          allowed = true;
+        }
+
+        if(!allowed){
+          return;
+        }
+
+        let subscription = null;
+        try{
+          subscription = await getActiveSubscription(currentUser.id);
+        }catch(subscriptionReadErr){
+          console.warn('getActiveSubscription warning:', normalizeErrorMessage(subscriptionReadErr));
+        }
+
         updateUserUI(currentUser, subscription);
         hideAuthOverlay();
-        await loadData();
+
+        try{
+          await loadData();
+        }catch(loadErr){
+          console.warn('loadData warning:', normalizeErrorMessage(loadErr));
+        }
+
         resetInvoiceForm();
         resetCashForm();
         resetPaymentForm();
@@ -4064,18 +4153,23 @@
         renderReports();
         appBooted = true;
       }catch(err){
-        console.error(err);
-        if(currentUser){
-          try{
-            await launchLocalMode(currentUser);
-            setAuthMessage('تم الدخول بوضع محلي لأن إعدادات قاعدة البيانات أو الاشتراك غير مكتملة.', false);
-            return;
-          }catch(localInitErr){
-            console.error(localInitErr);
-          }
+        console.error('initializeApp error:', err);
+        try{
+          await launchLocalMode(currentUser || preloadedUser || {
+            id: 'local-user',
+            email: (preloadedUser && preloadedUser.email) || 'demo@qayd.app',
+            user_metadata: { full_name: 'Qayd Local Demo' }
+          });
+          setAuthMessage('تم فتح النظام في الوضع المحلي لأن الاتصال بقاعدة البيانات أو الاشتراك غير مكتمل.', false);
+          return;
+        }catch(localInitErr){
+          console.error('launchLocalMode error:', localInitErr);
+          showAuthOverlay();
+          setAuthMessage(normalizeErrorMessage(err) || 'تعذر تهيئة النظام.', true);
         }
-        showAuthOverlay();
-        setAuthMessage(err.message || 'تعذر تهيئة النظام.', true);
+      }finally{
+        initializingApp = false;
+        setAuthBusy(false);
       }
     }
 
@@ -4083,7 +4177,7 @@
     document.getElementById('showSignupBtn').addEventListener('click', () => setAuthMode('signup'));
     document.getElementById('localAccessBtn').addEventListener('click', async () => {
       try{
-        setAuthMessage('جارٍ فتح الوضع المحلي...', false);
+        setAuthBusy(true, 'جارٍ فتح الوضع المحلي...');
         await launchLocalMode({
           id: 'local-user',
           email: 'demo@qayd.app',
@@ -4092,6 +4186,8 @@
       }catch(err){
         console.error(err);
         setAuthMessage('تعذر فتح الوضع المحلي.', true);
+      }finally{
+        setAuthBusy(false);
       }
     });
     document.getElementById('authForm').addEventListener('submit', async (e) => {
@@ -4099,27 +4195,42 @@
       const email = document.getElementById('authEmail').value.trim();
       const password = document.getElementById('authPassword').value.trim();
       const fullName = document.getElementById('authName').value.trim();
+
+      if(!email || !password){
+        setAuthMessage('اكتب البريد الإلكتروني وكلمة المرور أولًا.', true);
+        return;
+      }
+
       try{
-        setAuthMessage('جارٍ التنفيذ...', false);
+        setAuthBusy(true, 'جارٍ تسجيل الدخول...');
         const user = await loginOrSignup(email, password, fullName);
+
         if(authMode === 'signup'){
+          setAuthBusy(false);
           setAuthMode('login');
           setAuthMessage('تم إنشاء الحساب. لو ظهر تأكيد بالبريد فعّله ثم سجّل الدخول.', false);
           return;
         }
+
         currentUser = user;
-        await initializeApp(user);
-      }catch(err){
-        console.error(err);
-        const rawMessage = err?.message || 'تعذر تنفيذ العملية.';
-        const normalized = String(rawMessage).toLowerCase();
-        if(normalized.includes('email not confirmed')){
-          setAuthMessage('الحساب يحتاج تفعيل البريد الإلكتروني أولًا. افتح رسالة التفعيل ثم جرّب تسجيل الدخول.', true);
-        }else if(normalized.includes('invalid login credentials')){
-          setAuthMessage('البريد الإلكتروني أو كلمة المرور غير صحيحة.', true);
-        }else{
-          setAuthMessage(rawMessage, true);
+
+        await Promise.race([
+          initializeApp(user),
+          new Promise((resolve) => setTimeout(resolve, 7000))
+        ]);
+
+        if(document.getElementById('authOverlay').classList.contains('show')){
+          await launchLocalMode(user || {
+            id: 'local-user',
+            email,
+            user_metadata: { full_name: fullName || 'Qayd Local User' }
+          });
+          setAuthMessage('تم فتح النظام في الوضع المحلي بسبب بطء أو تعطل التهيئة السحابية.', false);
         }
+      }catch(err){
+        console.error('auth submit error:', err);
+        setAuthBusy(false);
+        setAuthMessage(normalizeErrorMessage(err), true);
       }
     });
 
@@ -4133,19 +4244,44 @@
       setAuthMessage('تم تسجيل الخروج بنجاح.', false);
     });
 
-    supabaseClient.auth.onAuthStateChange(async (event, session) => {
-      if(localMode) return;
-      currentUser = session?.user || null;
-      if(!currentUser){
-        showAuthOverlay();
-        return;
-      }
-      if(!appBooted){
-        await initializeApp();
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      Promise.resolve().then(async () => {
+        if(localMode) return;
+        currentUser = session?.user || null;
+        if(!currentUser){
+          showAuthOverlay();
+          return;
+        }
+        if(!appBooted){
+          await initializeApp();
+        }
+      }).catch((err) => {
+        console.error('onAuthStateChange error:', err);
+        setAuthMessage('حدثت مشكلة أثناء متابعة حالة تسجيل الدخول. يمكنك استخدام الدخول المحلي.', true);
+      });
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('Unhandled rejection:', event.reason);
+      const msg = normalizeErrorMessage(event.reason);
+      if(document.getElementById('authOverlay')?.classList.contains('show')){
+        setAuthBusy(false);
+        setAuthMessage(msg.includes('Object') ? 'حدث خطأ غير متوقع من خدمة الدخول. جرّب الدخول المحلي أو راجع إعدادات Supabase.' : msg, true);
       }
     });
 
-    initializeApp();
+    window.addEventListener('error', (event) => {
+      console.error('Window error:', event.error || event.message);
+      if(document.getElementById('authOverlay')?.classList.contains('show')){
+        setAuthBusy(false);
+      }
+    });
+
+    initializeApp().catch((err) => {
+      console.error('bootstrap error:', err);
+      setAuthBusy(false);
+      setAuthMessage('تعذر بدء التطبيق تلقائيًا. يمكنك استخدام الدخول المحلي.', true);
+    });
   </script>
 </body>
 </html>
