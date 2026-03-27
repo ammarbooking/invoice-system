@@ -1546,6 +1546,25 @@
       updatePaymentCustomerName();
     }
 
+    function getProductOptionList(selectedId = ''){
+      const sortedProducts = products.slice().sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+      const options = ['<option value=>اختر من المنتجات المحفوظة</option>'];
+      sortedProducts.forEach(product => {
+        const isSelected = selectedId && product.id === selectedId ? 'selected' : '';
+        options.push(`<option value="${safeText(product.id)}" ${isSelected}>${safeText(product.name)} — ${formatMoney(product.price)}</option>`);
+      });
+      return options.join('');
+    }
+
+    function refreshInvoiceItemProductOptions(){
+      const selects = document.querySelectorAll('.item-product');
+      selects.forEach(select => {
+        const currentValue = select.value || '';
+        select.innerHTML = getProductOptionList(currentValue);
+        if(currentValue) select.value = currentValue;
+      });
+    }
+
     function renderProducts(){
       const body = document.getElementById('productTableBody');
       if(!body) return;
