@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>نظام محاسبي احترافي - نسخة v2.2</title>
+  <title>نظام محاسبي احترافي - نسخة v2.3</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -136,7 +136,7 @@
     .field textarea{min-height:110px;resize:vertical}
 
     .item-row{
-      display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;
+      display:grid;grid-template-columns:1.3fr 1.7fr .9fr 1fr 1fr auto;
       gap:10px;align-items:end;margin-bottom:10px;padding:12px;
       border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--line)
     }
@@ -264,6 +264,7 @@
       <button class="nav-btn active" data-tab="dashboard"><span class="nav-icon">🏠</span>لوحة التحكم</button>
       <button class="nav-btn" data-tab="invoices"><span class="nav-icon">🧾</span>الفواتير</button>
       <button class="nav-btn" data-tab="customers"><span class="nav-icon">👥</span>العملاء</button>
+      <button class="nav-btn" data-tab="products"><span class="nav-icon">📦</span>المنتجات</button>
       <button class="nav-btn" data-tab="reports"><span class="nav-icon">📊</span>التقارير</button>
       <button class="nav-btn" data-tab="payments"><span class="nav-icon">💳</span>المدفوعات</button>
       <button class="nav-btn" data-tab="cashbox"><span class="nav-icon">💰</span>الخزنة</button>
@@ -284,8 +285,8 @@
 
       <section id="dashboard" class="tabs active">
         <div class="hero panel">
-          <h2>لوحة تحكم مالية ذكية - v2.2</h2>
-          <p>إدارة فواتير ودفعات وخزنة مع تنبيهات تلقائية، مؤشرات شهرية، وتحليل أوضح للمبيعات والتحصيل وطرق الدفع.</p>
+          <h2>لوحة تحكم مالية ذكية - v2.3</h2>
+          <p>إدارة فواتير ودفعات وخزنة مع تنبيهات تلقائية، مؤشرات شهرية، وتحليل أوضح للمبيعات والتحصيل وطرق الدفع، مع إدارة كاملة للمنتجات والخدمات.</p>
         </div>
 
         <div class="section panel">
@@ -342,7 +343,7 @@
         <div class="grid-2">
           <div class="section panel">
             <h3>إنشاء / تعديل فاتورة</h3>
-            <p>أضف بيانات الفاتورة والمنتجات وسيتم حساب الإجماليات تلقائيًا</p>
+            <p>أضف بيانات الفاتورة واختر من المنتجات المحفوظة أو اكتب يدويًا، وسيتم حساب الإجماليات تلقائيًا</p>
             <form id="invoiceForm">
               <div class="form-grid">
                 <div class="field">
@@ -504,6 +505,61 @@
                   </tr>
                 </thead>
                 <tbody id="customerTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+      <section id="products" class="tabs">
+        <div class="grid-2">
+          <div class="section panel">
+            <h3>إضافة / تعديل منتج أو خدمة</h3>
+            <p>أنشئ قائمة أصناف بأسعار افتراضية لتظهر داخل الفاتورة مباشرة.</p>
+            <form id="productForm">
+              <div class="form-grid">
+                <div class="field">
+                  <label>كود المنتج</label>
+                  <input id="productCode" type="text" placeholder="PRD-001">
+                </div>
+                <div class="field">
+                  <label>اسم المنتج / الخدمة</label>
+                  <input id="productName" type="text" placeholder="اشتراك سنوي">
+                </div>
+                <div class="field">
+                  <label>السعر الافتراضي</label>
+                  <input id="productPrice" type="number" min="0" step="0.01" placeholder="1500">
+                </div>
+                <div class="field">
+                  <label>الوصف المختصر</label>
+                  <input id="productDescription" type="text" placeholder="اختياري">
+                </div>
+              </div>
+              <div class="toolbar">
+                <button type="submit" class="btn primary">حفظ المنتج</button>
+                <button id="clearProductForm" type="button" class="btn secondary">تفريغ الحقول</button>
+              </div>
+            </form>
+            <div id="productMsg" class="footer-msg"></div>
+          </div>
+
+          <div class="section panel">
+            <h3>قائمة المنتجات والخدمات</h3>
+            <p>يمكن اختيار أي منتج من هذه القائمة داخل الفاتورة وسيتم تعبئة السعر تلقائيًا.</p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>الكود</th>
+                    <th>الاسم</th>
+                    <th>السعر</th>
+                    <th>الوصف</th>
+                    <th>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="productTableBody"></tbody>
               </table>
             </div>
           </div>
@@ -782,12 +838,18 @@
     </main>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    const SUPABASE_URL = "https://lmsbqjtgeufcfweodvxs.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtc2JxanRnZXVmY2Z3ZW9kdnhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDk0NTYsImV4cCI6MjA5MDE4NTQ1Nn0.xsl6QUrYYw_17GFxCQxi32LnP-8ohOlYgMpiONYMMG8";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const STORAGE_KEYS = {
       invoices: 'elitebooks_invoices',
       customers: 'elitebooks_customers',
       cash: 'elitebooks_cash_movements',
       payments: 'elitebooks_payments',
+      products: 'elitebooks_products',
       settings: 'elitebooks_settings'
     };
 
@@ -795,6 +857,7 @@
     let editingCustomerId = null;
     let editingCashId = null;
     let editingPaymentId = null;
+    let editingProductId = null;
 
     let companySettings = {
       companyName: 'EliteBooks ERP',
@@ -823,6 +886,12 @@
         updatedAt: new Date().toISOString()
       };
     }
+
+    let products = [
+      withMeta({ code: 'SRV-001', name: 'اشتراك سنوي', price: 16228.07, description: 'خدمة اشتراك سنوي' }, 'prd'),
+      withMeta({ code: 'SRV-002', name: 'خدمة تطوير', price: 12500, description: 'تنفيذ وتطوير حسب الاتفاق' }, 'prd'),
+      withMeta({ code: 'SRV-003', name: 'دعم فني', price: 3728.07, description: 'دعم وصيانة دورية' }, 'prd')
+    ];
 
     let invoices = [
       withMeta({
@@ -1007,6 +1076,16 @@
       };
     }
 
+    function normalizeProductRecord(item){
+      return withMeta({
+        ...item,
+        code: (item.code || '').trim() || ('PRD-' + String(Date.now()).slice(-5)),
+        name: (item.name || '').trim(),
+        price: Number(item.price || 0),
+        description: item.description || ''
+      }, 'prd');
+    }
+
     function fillCompanyForm(){
       document.getElementById('companyName').value = companySettings.companyName || '';
       document.getElementById('companyTagline').value = companySettings.tagline || '';
@@ -1060,12 +1139,104 @@
       }
     }
 
-    function saveData(){
-      localStorage.setItem(STORAGE_KEYS.invoices, JSON.stringify(invoices));
-      localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(customers));
-      localStorage.setItem(STORAGE_KEYS.cash, JSON.stringify(cashMovements));
-      localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(payments));
-      localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(companySettings));
+    async function saveData(){
+      try{
+        localStorage.setItem(STORAGE_KEYS.invoices, JSON.stringify(invoices));
+        localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(customers));
+        localStorage.setItem(STORAGE_KEYS.cash, JSON.stringify(cashMovements));
+        localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(payments));
+        localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
+        localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(companySettings));
+
+        const [
+          customersResult,
+          productsResult,
+          invoicesResult,
+          paymentsResult,
+          cashResult,
+          settingsResult
+        ] = await Promise.all([
+          supabaseClient.from('customers').upsert(customers.map(c => ({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            created_at: c.createdAt || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })), { onConflict: 'id' }),
+          supabaseClient.from('products').upsert(products.map(p => ({
+            id: p.id,
+            code: p.code,
+            name: p.name,
+            price: Number(p.price || 0),
+            description: p.description || '',
+            created_at: p.createdAt || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })), { onConflict: 'id' }),
+          supabaseClient.from('invoices').upsert(invoices.map(inv => ({
+            id: inv.id,
+            number: inv.number,
+            customer: inv.customer,
+            amount: Number(inv.amount || 0),
+            paid_amount: Number(inv.paidAmount || 0),
+            remaining_amount: Number(inv.remainingAmount || 0),
+            date: inv.date,
+            due_date: inv.dueDate,
+            status: inv.status,
+            discount: Number(inv.discount || 0),
+            tax: Number(inv.tax || 0),
+            notes: inv.notes || '',
+            items: inv.items || [],
+            created_at: inv.createdAt || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })), { onConflict: 'id' }),
+          supabaseClient.from('payments').upsert(payments.map(p => ({
+            id: p.id,
+            invoice_id: p.invoiceId,
+            invoice_number: p.invoiceNumber,
+            customer: p.customer,
+            amount: Number(p.amount || 0),
+            date: p.date,
+            method: p.method,
+            notes: p.notes || '',
+            add_to_cash: p.addToCash,
+            created_at: p.createdAt || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })), { onConflict: 'id' }),
+          supabaseClient.from('cash_movements').upsert(cashMovements.map(c => ({
+            id: c.id,
+            type: c.type,
+            amount: Number(c.amount || 0),
+            date: c.date,
+            category: c.category,
+            description: c.description || '',
+            created_at: c.createdAt || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })), { onConflict: 'id' }),
+          supabaseClient.from('settings').upsert([{
+            id: 'main_settings',
+            company_name: companySettings.companyName,
+            tagline: companySettings.tagline,
+            address: companySettings.address,
+            phone: companySettings.phone,
+            tax_number: companySettings.taxNumber,
+            logo_text: companySettings.logoText,
+            invoice_footer: companySettings.invoiceFooter,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }], { onConflict: 'id' })
+        ]);
+
+        const syncErrors = [customersResult, productsResult, invoicesResult, paymentsResult, cashResult, settingsResult]
+          .map(r => r.error)
+          .filter(Boolean);
+
+        if(syncErrors.length){
+          console.error('Supabase sync errors:', syncErrors);
+        }
+      }catch(err){
+        console.error('Save data error', err);
+      }
     }
 
     function migrateCollection(arr, prefix){
@@ -1075,27 +1246,137 @@
       }, prefix));
     }
 
-    function loadData(){
+    async function loadData(){
       try{
-        const savedInvoices = JSON.parse(localStorage.getItem(STORAGE_KEYS.invoices) || 'null');
-        const savedCustomers = JSON.parse(localStorage.getItem(STORAGE_KEYS.customers) || 'null');
-        const savedCash = JSON.parse(localStorage.getItem(STORAGE_KEYS.cash) || 'null');
-        const savedPayments = JSON.parse(localStorage.getItem(STORAGE_KEYS.payments) || 'null');
-        const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null');
+        const [
+          customersResponse,
+          productsResponse,
+          invoicesResponse,
+          paymentsResponse,
+          cashResponse,
+          settingsResponse
+        ] = await Promise.all([
+          supabaseClient.from('customers').select('*').order('created_at', { ascending: true }),
+          supabaseClient.from('products').select('*').order('created_at', { ascending: true }),
+          supabaseClient.from('invoices').select('*').order('date', { ascending: false }),
+          supabaseClient.from('payments').select('*').order('date', { ascending: false }),
+          supabaseClient.from('cash_movements').select('*').order('date', { ascending: false }),
+          supabaseClient.from('settings').select('*').eq('id', 'main_settings').maybeSingle()
+        ]);
 
-        if(Array.isArray(savedInvoices) && savedInvoices.length) invoices = migrateCollection(savedInvoices, 'inv');
-        if(Array.isArray(savedCustomers) && savedCustomers.length) customers = migrateCollection(savedCustomers, 'cus');
-        if(Array.isArray(savedCash) && savedCash.length) cashMovements = migrateCollection(savedCash, 'cash');
-        if(Array.isArray(savedPayments) && savedPayments.length) payments = migrateCollection(savedPayments, 'pay');
-        if(savedSettings && typeof savedSettings === 'object') companySettings = normalizeCompanySettings(savedSettings);
+        if(customersResponse.error || productsResponse.error || invoicesResponse.error || paymentsResponse.error || cashResponse.error || settingsResponse.error){
+          throw new Error('تعذر تحميل البيانات من Supabase. تأكد من إنشاء الجداول وسياسات الوصول.');
+        }
+
+        if(Array.isArray(customersResponse.data) && customersResponse.data.length){
+          customers = customersResponse.data.map(c => withMeta({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            createdAt: c.created_at,
+            updatedAt: c.updated_at
+          }, 'cus'));
+        }
+
+        if(Array.isArray(productsResponse.data) && productsResponse.data.length){
+          products = productsResponse.data.map(p => normalizeProductRecord({
+            id: p.id,
+            code: p.code,
+            name: p.name,
+            price: Number(p.price || 0),
+            description: p.description || '',
+            createdAt: p.created_at,
+            updatedAt: p.updated_at
+          }));
+        }
+
+        if(Array.isArray(invoicesResponse.data) && invoicesResponse.data.length){
+          invoices = invoicesResponse.data.map(inv => normalizeInvoiceRecord({
+            id: inv.id,
+            number: inv.number,
+            customer: inv.customer,
+            amount: Number(inv.amount || 0),
+            paidAmount: Number(inv.paid_amount || 0),
+            remainingAmount: Number(inv.remaining_amount || 0),
+            date: inv.date,
+            dueDate: inv.due_date,
+            status: inv.status,
+            discount: Number(inv.discount || 0),
+            tax: Number(inv.tax || 0),
+            notes: inv.notes || '',
+            items: inv.items || [],
+            createdAt: inv.created_at,
+            updatedAt: inv.updated_at
+          }));
+        }
+
+        if(Array.isArray(paymentsResponse.data) && paymentsResponse.data.length){
+          payments = paymentsResponse.data.map(p => normalizePaymentRecord({
+            id: p.id,
+            invoiceId: p.invoice_id,
+            invoiceNumber: p.invoice_number,
+            customer: p.customer,
+            amount: Number(p.amount || 0),
+            date: p.date,
+            method: p.method,
+            notes: p.notes || '',
+            addToCash: p.add_to_cash,
+            createdAt: p.created_at,
+            updatedAt: p.updated_at
+          }));
+        }
+
+        if(Array.isArray(cashResponse.data) && cashResponse.data.length){
+          cashMovements = cashResponse.data.map(c => normalizeCashRecord({
+            id: c.id,
+            type: c.type,
+            amount: Number(c.amount || 0),
+            date: c.date,
+            category: c.category,
+            description: c.description || '',
+            createdAt: c.created_at,
+            updatedAt: c.updated_at
+          }));
+        }
+
+        if(settingsResponse.data){
+          companySettings = normalizeCompanySettings({
+            companyName: settingsResponse.data.company_name,
+            tagline: settingsResponse.data.tagline,
+            address: settingsResponse.data.address,
+            phone: settingsResponse.data.phone,
+            taxNumber: settingsResponse.data.tax_number,
+            logoText: settingsResponse.data.logo_text,
+            invoiceFooter: settingsResponse.data.invoice_footer
+          });
+        }
       }catch(err){
         console.error('Load data error', err);
-        addActivity('تعذر قراءة البيانات المحفوظة، تم استخدام البيانات الافتراضية.');
+        addActivity('تعذر تحميل البيانات من قاعدة البيانات، تم استخدام البيانات المحلية/الافتراضية.');
+        try{
+          const savedInvoices = JSON.parse(localStorage.getItem(STORAGE_KEYS.invoices) || 'null');
+          const savedCustomers = JSON.parse(localStorage.getItem(STORAGE_KEYS.customers) || 'null');
+          const savedCash = JSON.parse(localStorage.getItem(STORAGE_KEYS.cash) || 'null');
+          const savedPayments = JSON.parse(localStorage.getItem(STORAGE_KEYS.payments) || 'null');
+          const savedProducts = JSON.parse(localStorage.getItem(STORAGE_KEYS.products) || 'null');
+          const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null');
+
+          if(Array.isArray(savedInvoices) && savedInvoices.length) invoices = migrateCollection(savedInvoices, 'inv');
+          if(Array.isArray(savedCustomers) && savedCustomers.length) customers = migrateCollection(savedCustomers, 'cus');
+          if(Array.isArray(savedCash) && savedCash.length) cashMovements = migrateCollection(savedCash, 'cash');
+          if(Array.isArray(savedPayments) && savedPayments.length) payments = migrateCollection(savedPayments, 'pay');
+          if(Array.isArray(savedProducts) && savedProducts.length) products = savedProducts.map(normalizeProductRecord);
+          if(savedSettings && typeof savedSettings === 'object') companySettings = normalizeCompanySettings(savedSettings);
+        }catch(localErr){
+          console.error('Local fallback error', localErr);
+        }
       }
 
       invoices = invoices.map(normalizeInvoiceRecord);
       payments = payments.map(normalizePaymentRecord);
       cashMovements = cashMovements.map(normalizeCashRecord);
+      products = products.map(normalizeProductRecord);
       companySettings = normalizeCompanySettings(companySettings);
       recalculateAllInvoices();
     }
@@ -1113,13 +1394,26 @@
     function addInvoiceItem(data = { name:'', qty:1, price:'' }){
       const wrapper = document.createElement('div');
       wrapper.className = 'item-row';
+      const linkedProduct = data.productId ? products.find(p => p.id === data.productId) : products.find(p => p.name === data.name);
+      const selectedProductId = linkedProduct?.id || data.productId || '';
       wrapper.innerHTML = `
-        <input type="text" class="item-name" placeholder="اسم الصنف" value="${safeText(data.name || '')}">
+        <select class="item-product">${getProductOptionList(selectedProductId)}</select>
+        <input type="text" class="item-name" placeholder="اسم الصنف" value="${safeText(data.name || linkedProduct?.name || '')}">
         <input type="number" class="item-qty" placeholder="الكمية" min="1" step="1" value="${safeText(data.qty || 1)}">
-        <input type="number" class="item-price" placeholder="السعر" min="0" step="0.01" value="${safeText(data.price || '')}">
+        <input type="number" class="item-price" placeholder="السعر" min="0" step="0.01" value="${safeText((data.price ?? linkedProduct?.price) || '')}">
         <input type="text" class="item-total" placeholder="الإجمالي" readonly value="0">
         <button type="button" class="remove-item">حذف</button>
       `;
+
+      const productSelect = wrapper.querySelector('.item-product');
+      productSelect.addEventListener('change', () => {
+        const product = products.find(p => p.id === productSelect.value);
+        if(product){
+          wrapper.querySelector('.item-name').value = product.name;
+          wrapper.querySelector('.item-price').value = product.price;
+        }
+        calculateInvoiceTotals();
+      });
 
       wrapper.querySelectorAll('input').forEach(input => {
         input.addEventListener('input', calculateInvoiceTotals);
@@ -1149,7 +1443,7 @@
         row.querySelector('.item-total').value = total ? total.toFixed(2) : '0';
 
         if(name && qty > 0 && price >= 0){
-          items.push({ name, qty, price });
+          items.push({ productId: row.querySelector('.item-product')?.value || '', name, qty, price });
         }
       });
 
@@ -1250,6 +1544,69 @@
       });
       if(selectedInvoiceId) select.value = selectedInvoiceId;
       updatePaymentCustomerName();
+    }
+
+    function renderProducts(){
+      const body = document.getElementById('productTableBody');
+      if(!body) return;
+      body.innerHTML = '';
+
+      if(!products.length){
+        body.innerHTML = '<tr><td colspan="5" class="empty">لا توجد منتجات أو خدمات محفوظة</td></tr>';
+        refreshInvoiceItemProductOptions();
+        return;
+      }
+
+      products
+        .slice()
+        .sort((a,b) => a.name.localeCompare(b.name, 'ar'))
+        .forEach(product => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${safeText(product.code || '-')}</td>
+            <td>${safeText(product.name)}</td>
+            <td>${formatMoney(product.price)}</td>
+            <td>${safeText(product.description || '-')}</td>
+            <td>
+              <div class="row-actions">
+                <button type="button" class="mini-btn edit" onclick="editProduct('${product.id}')">تعديل</button>
+                <button type="button" class="mini-btn delete" onclick="deleteProduct('${product.id}')">حذف</button>
+              </div>
+            </td>
+          `;
+          body.appendChild(row);
+        });
+      refreshInvoiceItemProductOptions();
+    }
+
+    function editProduct(id){
+      const product = products.find(x => x.id === id);
+      if(!product) return;
+      editingProductId = id;
+      document.getElementById('productCode').value = product.code || '';
+      document.getElementById('productName').value = product.name || '';
+      document.getElementById('productPrice').value = product.price || '';
+      document.getElementById('productDescription').value = product.description || '';
+      switchTab('products');
+      addActivity('تم تحميل المنتج ' + product.name + ' للتعديل.');
+      showMessage('productMsg', 'أنت الآن في وضع تعديل المنتج.');
+    }
+
+    function deleteProduct(id){
+      const index = products.findIndex(x => x.id === id);
+      if(index === -1) return;
+      const product = products[index];
+      const usedInInvoices = invoices.some(inv => (inv.items || []).some(item => item.productId === id || item.name === product.name));
+      if(usedInInvoices){
+        showMessage('productMsg', 'لا يمكن حذف المنتج لأنه مستخدم داخل فاتورة واحدة على الأقل.');
+        switchTab('products');
+        return;
+      }
+      products.splice(index, 1);
+      saveData();
+      renderProducts();
+      addActivity('تم حذف المنتج ' + product.name + '.');
+      showMessage('productMsg', 'تم حذف المنتج بنجاح.');
     }
 
     function renderCustomers(){
@@ -1673,6 +2030,11 @@
       document.getElementById('customerForm').reset();
     }
 
+    function resetProductForm(){
+      editingProductId = null;
+      document.getElementById('productForm')?.reset();
+    }
+
     function resetCashForm(){
       editingCashId = null;
       document.getElementById('cashForm').reset();
@@ -1755,7 +2117,7 @@
       const payload = {
         exportedAt: new Date().toISOString(),
         app: 'EliteBooks ERP v2',
-        data: { invoices, customers, payments, cashMovements, companySettings }
+        data: { invoices, customers, payments, cashMovements, products, companySettings }
       };
       downloadFile('elitebooks-backup.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8;');
     }
@@ -1769,10 +2131,12 @@
       customers = raw.customers.map(item => withMeta(item, 'cus'));
       payments = Array.isArray(raw.payments) ? raw.payments.map(normalizePaymentRecord) : [];
       cashMovements = raw.cashMovements.map(normalizeCashRecord);
+      products = Array.isArray(raw.products) && raw.products.length ? raw.products.map(normalizeProductRecord) : products.map(normalizeProductRecord);
       companySettings = normalizeCompanySettings(raw.companySettings || companySettings);
       recalculateAllInvoices();
       saveData();
       renderCustomers();
+      renderProducts();
       renderPayments();
       applyInvoiceFilters();
       renderCash();
@@ -1781,6 +2145,7 @@
       resetInvoiceForm();
       resetCashForm();
       resetPaymentForm();
+      resetProductForm();
       fillCompanyForm();
     }
 
@@ -2216,6 +2581,58 @@
       resetCustomerForm();
     });
 
+
+    document.getElementById('productForm').addEventListener('submit', function(e){
+      e.preventDefault();
+
+      const data = normalizeProductRecord({
+        id: editingProductId || undefined,
+        code: document.getElementById('productCode').value.trim(),
+        name: document.getElementById('productName').value.trim(),
+        price: Number(document.getElementById('productPrice').value || 0),
+        description: document.getElementById('productDescription').value.trim()
+      });
+
+      if(!data.name || data.price < 0){
+        showMessage('productMsg', 'من فضلك اكتب اسم المنتج وسعرًا صحيحًا.');
+        return;
+      }
+
+      const duplicate = products.some(p => (p.name.toLowerCase() === data.name.toLowerCase() || p.code.toLowerCase() === data.code.toLowerCase()) && p.id !== data.id);
+      if(duplicate){
+        showMessage('productMsg', 'يوجد منتج بنفس الاسم أو الكود بالفعل.');
+        return;
+      }
+
+      if(editingProductId){
+        const index = products.findIndex(x => x.id === editingProductId);
+        if(index !== -1){
+          const oldProduct = products[index];
+          data.createdAt = products[index].createdAt;
+          products[index] = data;
+          invoices.forEach(inv => {
+            (inv.items || []).forEach(item => {
+              if(item.productId === oldProduct.id || item.name === oldProduct.name){
+                item.productId = data.id;
+                if(item.name === oldProduct.name) item.name = data.name;
+              }
+            });
+          });
+        }
+        addActivity('تم تعديل المنتج ' + data.name + '.');
+        showMessage('productMsg', 'تم تحديث المنتج بنجاح.');
+      }else{
+        products.unshift(data);
+        addActivity('تمت إضافة منتج/خدمة جديدة باسم ' + data.name + '.');
+        showMessage('productMsg', 'تم حفظ المنتج بنجاح.');
+      }
+
+      saveData();
+      renderProducts();
+      applyInvoiceFilters();
+      resetProductForm();
+    });
+
     document.getElementById('cashForm').addEventListener('submit', function(e){
       e.preventDefault();
 
@@ -2345,6 +2762,7 @@
 
     document.getElementById('clearInvoiceForm').addEventListener('click', resetInvoiceForm);
     document.getElementById('clearCustomerForm').addEventListener('click', resetCustomerForm);
+    document.getElementById('clearProductForm').addEventListener('click', resetProductForm);
     document.getElementById('clearCashForm').addEventListener('click', resetCashForm);
     document.getElementById('clearPaymentForm').addEventListener('click', resetPaymentForm);
 
@@ -2413,16 +2831,22 @@
       switchTab('invoices');
     });
 
-    loadData();
-    resetInvoiceForm();
-    resetCashForm();
-    resetPaymentForm();
-    renderCustomers();
-    applyInvoiceFilters();
-    renderPayments();
-    renderCash();
-    renderStats();
-    renderReports();
+    async function initializeApp(){
+      await loadData();
+      resetInvoiceForm();
+      resetCashForm();
+      resetPaymentForm();
+      resetProductForm();
+      renderCustomers();
+      renderProducts();
+      applyInvoiceFilters();
+      renderPayments();
+      renderCash();
+      renderStats();
+      renderReports();
+    }
+
+    initializeApp();
   </script>
 </body>
 </html>
