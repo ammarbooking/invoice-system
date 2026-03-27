@@ -1153,51 +1153,90 @@
 
     async function ensureProfileAndSubscription(user, fullName = ''){
       if(!user) return;
-      await supabaseClient.from('profiles').upsert([{
-        id: user.id,
-        email: user.email,
-        full_name: fullName || user.user_metadata?.full_name || '',
-        updated_at: new Date().toISOString()
-      }], { onConflict: 'id' });
 
-      const { data: sub } = await supabaseClient
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      try{
+        await supabaseClient.from('profiles').upsert([{
+          id: user.id,
+          email: user.email,
+          full_name: fullName || user.user_metadata?.full_name || '',
+          updated_at: new Date().toISOString()
+        }], { onConflict: 'id' });
+      }catch(err){
+        console.warn('Profile sync skipped:', err?.message || err);
+      }
 
-      if(!sub){
-        const expiresAt = new Date(Date.now() + 7*24*60*60*1000).toISOString();
-        await supabaseClient.from('subscriptions').insert([{
-          user_id: user.id,
-          plan: 'trial',
-          status: 'active',
-          expires_at: expiresAt
-        }]);
+      try{
+        const { data: sub, error } = await supabaseClient
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if(error){
+          console.warn('Subscription read skipped:', error.message || error);
+          return;
+        }
+
+        if(!sub){
+          const expiresAt = new Date(Date.now() + 7*24*60*60*1000).toISOString();
+          const { error: insertError } = await supabaseClient.from('subscriptions').insert([{
+            user_id: user.id,
+            plan: 'trial',
+            status: 'active',
+            expires_at: expiresAt
+          }]);
+          if(insertError){
+            console.warn('Subscription create skipped:', insertError.message || insertError);
+          }
+        }
+      }catch(err){
+        console.warn('Subscription bootstrap skipped:', err?.message || err);
       }
     }
 
     async function getActiveSubscription(userId){
-      const { data, error } = await supabaseClient
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      if(error) throw error;
-      return data || null;
+      try{
+        const { data, error } = await supabaseClient
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if(error){
+          console.warn('Subscription read fallback:', error.message || error);
+          return {
+            user_id: userId,
+            plan: 'trial',
+            status: 'active',
+            expires_at: new Date(Date.now() + 7*24*60*60*1000).toISOString()
+          };
+        }
+
+        return data || {
+          user_id: userId,
+          plan: 'trial',
+          status: 'active',
+          expires_at: new Date(Date.now() + 7*24*60*60*1000).toISOString()
+        };
+      }catch(err){
+        console.warn('Subscription fallback:', err?.message || err);
+        return {
+          user_id: userId,
+          plan: 'trial',
+          status: 'active',
+          expires_at: new Date(Date.now() + 7*24*60*60*1000).toISOString()
+        };
+      }
     }
 
     async function verifySubscription(user){
       const notice = document.getElementById('subscriptionNotice');
       notice.style.display = 'none';
       if(!user) return false;
+
       const sub = await getActiveSubscription(user.id);
-      if(!sub){
-        notice.style.display = 'block';
-        notice.textContent = 'لا يوجد اشتراك مرتبط بهذا الحساب.';
-        showAuthOverlay();
-        return false;
-      }
+      if(!sub) return true;
+
       const isExpired = sub.expires_at && new Date(sub.expires_at) < new Date();
       if(sub.status !== 'active' || isExpired){
         notice.style.display = 'block';
@@ -3964,6 +4003,35 @@
         appBooted = true;
       }catch(err){
         console.error(err);
+        if(currentUser){
+          try{
+            updateUserUI(currentUser, {
+              plan: 'trial',
+              expires_at: new Date(Date.now() + 7*24*60*60*1000).toISOString()
+            });
+            hideAuthOverlay();
+            await loadData();
+            resetInvoiceForm();
+            resetCashForm();
+            resetPaymentForm();
+            resetProductForm();
+            resetAccountForm();
+            resetJournalForm();
+            resetVoucherForm();
+            renderCustomers();
+            renderProducts();
+            applyInvoiceFilters();
+            renderPayments();
+            renderCash();
+            renderStats();
+            renderReports();
+            appBooted = true;
+            setAuthMessage('تم الدخول بوضع محلي لأن إعدادات قاعدة البيانات أو الاشتراك غير مكتملة.', false);
+            return;
+          }catch(localInitErr){
+            console.error(localInitErr);
+          }
+        }
         showAuthOverlay();
         setAuthMessage(err.message || 'تعذر تهيئة النظام.', true);
       }
@@ -3988,7 +4056,15 @@
         await initializeApp();
       }catch(err){
         console.error(err);
-        setAuthMessage(err.message || 'تعذر تنفيذ العملية.', true);
+        const rawMessage = err?.message || 'تعذر تنفيذ العملية.';
+        const normalized = String(rawMessage).toLowerCase();
+        if(normalized.includes('email not confirmed')){
+          setAuthMessage('الحساب يحتاج تفعيل البريد الإلكتروني أولًا. افتح رسالة التفعيل ثم جرّب تسجيل الدخول.', true);
+        }else if(normalized.includes('invalid login credentials')){
+          setAuthMessage('البريد الإلكتروني أو كلمة المرور غير صحيحة.', true);
+        }else{
+          setAuthMessage(rawMessage, true);
+        }
       }
     });
 
